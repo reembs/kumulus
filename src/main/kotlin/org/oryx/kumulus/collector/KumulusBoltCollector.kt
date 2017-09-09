@@ -1,9 +1,15 @@
-package org.oryx.kumulus
+package org.oryx.kumulus.collector
 
+import org.apache.storm.generated.Grouping
 import org.apache.storm.task.IOutputCollector
 import org.apache.storm.tuple.Tuple
+import org.oryx.kumulus.KumulusEmitter
 
-class KumulusBoltCollector : KumulusCollector(), IOutputCollector {
+class KumulusBoltCollector(
+        componentRegisteredOutputs: Map<String, Pair<String, Grouping>>,
+        emitter: KumulusEmitter
+) : KumulusCollector(componentRegisteredOutputs, emitter), IOutputCollector {
+
     override fun emitDirect(taskId: Int, streamId: String?, anchors: MutableCollection<Tuple>?, tuple: MutableList<Any>?) {
         TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
     }
@@ -25,7 +31,6 @@ class KumulusBoltCollector : KumulusCollector(), IOutputCollector {
     }
 
     override fun emit(streamId: String?, anchors: MutableCollection<Tuple>?, tuple: MutableList<Any>?): MutableList<Int> {
-        TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
+        return super.emit(streamId, tuple)
     }
-
 }

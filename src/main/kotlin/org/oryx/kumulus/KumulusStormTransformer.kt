@@ -1,8 +1,8 @@
 package org.oryx.kumulus
 
 import clojure.lang.Atom
-import org.apache.storm.Config
 import org.apache.storm.generated.ComponentCommon
+import org.apache.storm.generated.GlobalStreamId
 import org.apache.storm.generated.StormTopology
 import org.apache.storm.metric.api.IMetric
 import org.apache.storm.task.TopologyContext
@@ -12,12 +12,16 @@ import org.apache.storm.topology.IRichSpout
 import org.apache.storm.topology.TopologyBuilder
 import org.apache.storm.tuple.Fields
 import org.apache.storm.utils.Utils
+import org.oryx.kumulus.component.KumulusBolt
+import org.oryx.kumulus.component.KumulusComponent
+import org.oryx.kumulus.component.KumulusSpout
 import java.io.Serializable
 
+@Suppress("unused")
 class KumulusStormTransformer {
     companion object {
         @Suppress("UNCHECKED_CAST")
-        fun initializeTopology(builder: TopologyBuilder, topology: StormTopology?, config: Config, stormId: String) : KumulusTopology {
+        fun initializeTopology(builder: TopologyBuilder, topology: StormTopology?, config: MutableMap<String, Any>, stormId: String) : KumulusTopology {
             val boltField = builder.javaClass.getDeclaredField("_bolts")
             boltField.isAccessible = true
             val boltsMap : Map<String, IComponent> = boltField.get(builder) as Map<String, IRichBolt>
@@ -50,7 +54,10 @@ class KumulusStormTransformer {
 
             val componentMaps = listOf(spoutsMap, boltsMap)
 
-            var kComponents : MutableList<KumulusComponent> = mutableListOf()
+            val kComponents : MutableList<KumulusComponent> = mutableListOf()
+
+            val kComponentInputs : MutableMap<Pair<String, GlobalStreamId>, org.apache.storm.generated.Grouping> =
+                    mutableMapOf()
 
             var id = 1
             for (componentMap in componentMaps) {
@@ -80,6 +87,10 @@ class KumulusStormTransformer {
                             val streamInfo = componentCommon._streams[stream]
                             streamToFields[stream] = Fields(streamInfo?._output_fields)
                         }
+
+                        componentCommon._inputs?.forEach({
+                            kComponentInputs[Pair(name, it.key)] = it.value
+                        })
 
                         id++
                     }
@@ -115,16 +126,16 @@ class KumulusStormTransformer {
                             registeredMetrics,
                             Atom(Object()))
 
-                    kComponents.add(when (componentInstance) {
+                    kComponents += when (componentInstance) {
                         is IRichBolt -> KumulusBolt(config, context, componentInstance)
                         is IRichSpout -> KumulusSpout(config, context, componentInstance)
                         else ->
                             throw Throwable("Component of type ${componentInstance::class.qualifiedName} is not acceptable by Kumulus")
-                    })
+                    }
                 })
             })
 
-            return KumulusTopology(kComponents)
+            return KumulusTopology(kComponents, kComponentInputs, config)
         }
     }
 }
