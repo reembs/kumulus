@@ -6,7 +6,7 @@ import org.apache.storm.tuple.Tuple
 import org.oryx.kumulus.KumulusEmitter
 
 class KumulusBoltCollector(
-        componentRegisteredOutputs: Map<String, Pair<String, Grouping>>,
+        componentRegisteredOutputs: List<Pair<String, Pair<String, Grouping>>>,
         emitter: KumulusEmitter
 ) : KumulusCollector(componentRegisteredOutputs, emitter), IOutputCollector {
 

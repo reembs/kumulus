@@ -5,7 +5,7 @@ import org.apache.storm.spout.ISpoutOutputCollector
 import org.oryx.kumulus.KumulusEmitter
 
 class KumulusSpoutCollector(
-        componentRegisteredOutputs: Map<String, Pair<String, Grouping>>,
+        componentRegisteredOutputs: List<Pair<String, Pair<String, Grouping>>>,
         emitter: KumulusEmitter
 ) : KumulusCollector(componentRegisteredOutputs, emitter), ISpoutOutputCollector {
 

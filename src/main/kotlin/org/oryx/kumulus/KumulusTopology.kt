@@ -36,15 +36,13 @@ class KumulusTopology(
                             .filter { it.key.second._componentId == component.name() }
                             .map { Pair(it.key.second._streamId, Pair(it.key.first, it.value)) }
 
-            val componentOutputsMap = componentRegisteredOutputs.toMap()
-
             ex.execute({
                 when (component) {
                     is KumulusSpout -> {
-                        component.prepare(KumulusSpoutCollector(componentOutputsMap, this))
+                        component.prepare(KumulusSpoutCollector(componentRegisteredOutputs, this))
                     }
                     is KumulusBolt -> {
-                        component.prepare(KumulusBoltCollector(componentOutputsMap, this))
+                        component.prepare(KumulusBoltCollector(componentRegisteredOutputs, this))
                     }
                 }
             })
@@ -88,6 +86,7 @@ class KumulusTopology(
     }
 
     override fun emit(dest: GlobalStreamId, grouping: Grouping, tuple: MutableList<Any>?) : MutableList<Int> {
+        val tasks = this.components.filter { it.name() == dest._componentId }
         return mutableListOf()
     }
 }

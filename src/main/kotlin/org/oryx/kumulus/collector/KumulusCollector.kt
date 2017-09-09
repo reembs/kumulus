@@ -5,12 +5,18 @@ import org.apache.storm.generated.Grouping
 import org.oryx.kumulus.KumulusEmitter
 
 abstract class KumulusCollector(
-        private val componentRegisteredOutputs: Map<String, Pair<String, Grouping>>,
+        private val componentRegisteredOutputs: List<Pair<String, Pair<String, Grouping>>>,
         private val emitter: KumulusEmitter
 ) {
 
     fun emit(streamId: String?, tuple: MutableList<Any>?) : MutableList<Int> {
-        val outputPair = componentRegisteredOutputs.get(streamId) ?: throw IllegalArgumentException()
-        return emitter.emit(GlobalStreamId(outputPair.first, streamId), outputPair.second, tuple)
+        val outputPairs = componentRegisteredOutputs.filter { it.first == streamId }
+
+        val ret = mutableListOf<Int>()
+        outputPairs.forEach {
+            ret += emitter.emit(GlobalStreamId(it.second.first, streamId), it.second.second, tuple)
+        }
+
+        return ret
     }
 }
