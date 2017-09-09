@@ -15,7 +15,6 @@
         <junit.version>4.12</junit.version>
         <main.class>org.oryx.kumulus.KumulusKt</main.class>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-        <kotlin.compiler.incremental>true</kotlin.compiler.incremental>
     </properties>
 
     <dependencies>
@@ -24,6 +23,13 @@
             <artifactId>kotlin-stdlib-jre8</artifactId>
             <version>${kotlin.version}</version>
         </dependency>
+        <dependency>
+            <groupId>org.jetbrains.kotlin</groupId>
+            <artifactId>kotlin-reflect</artifactId>
+            <version>${kotlin.version}</version>
+        </dependency>
+
+
         <dependency>
             <groupId>org.apache.storm</groupId>
             <artifactId>storm-core</artifactId>
