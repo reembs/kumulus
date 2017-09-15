@@ -5,6 +5,7 @@ import org.apache.storm.task.IOutputCollector
 import org.apache.storm.tuple.Tuple
 import org.oryx.kumulus.KumulusAcker
 import org.oryx.kumulus.KumulusEmitter
+import org.oryx.kumulus.component.KumulusBolt
 import org.oryx.kumulus.component.KumulusComponent
 
 class KumulusBoltCollector(
@@ -12,7 +13,7 @@ class KumulusBoltCollector(
         componentRegisteredOutputs: List<Pair<String, Pair<String, Grouping>>>,
         emitter: KumulusEmitter,
         acker : KumulusAcker
-) : KumulusCollector(component, componentRegisteredOutputs, emitter, acker), IOutputCollector {
+) : KumulusCollector<KumulusBolt>(component, componentRegisteredOutputs, emitter, acker), IOutputCollector {
     override fun emitDirect(taskId: Int, streamId: String?, anchors: MutableCollection<Tuple>?, tuple: MutableList<Any>?) {
         TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
     }

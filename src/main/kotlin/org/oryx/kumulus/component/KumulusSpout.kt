@@ -16,6 +16,7 @@ class KumulusSpout(
     fun prepare(collector: KumulusSpoutCollector) {
         println("Created spout '${context.thisComponentId}' with taskId ${context.thisTaskId} (index: ${context.thisTaskIndex}). Object hashcode: ${this.hashCode()}")
         spout.open(config, context, SpoutOutputCollector(collector))
+        super.prepare()
     }
 
     fun nextTuple() {

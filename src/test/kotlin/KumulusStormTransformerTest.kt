@@ -1,4 +1,5 @@
 import org.apache.storm.Config
+import org.apache.storm.LocalCluster
 import org.apache.storm.spout.SpoutOutputCollector
 import org.apache.storm.task.TopologyContext
 import org.apache.storm.topology.BasicOutputCollector
@@ -39,16 +40,23 @@ internal class KumulusStormTransformerTest {
         }
 
         val bolt = object : BaseBasicBolt() {
+            lateinit var context: TopologyContext
+
+            override fun prepare(stormConf: MutableMap<Any?, Any?>?, context: TopologyContext?) {
+                this.context = context!!
+                super.prepare(stormConf, context)
+            }
+
             override fun execute(input: Tuple?, collector: BasicOutputCollector?) {
                 val message: String = input?.getValueByField("message") as String
                 val nanotime: Long = input.getValueByField("nanotime") as Long
-                println("Message: $message, took: ${(System.nanoTime() - nanotime) / 1000.0 / 1000.0}ms")
+                println("[${context.thisComponentId}/${context.thisTaskId}-${context.thisTaskIndex}] Message: $message, took: ${(System.nanoTime() - nanotime) / 1000.0 / 1000.0}ms")
             }
 
             override fun declareOutputFields(declarer: OutputFieldsDeclarer?) {}
         }
 
-        builder.setSpout("spout", spout, 2)
+        builder.setSpout("spout", spout, 1)
         builder.setBolt("bolt", bolt, 5)
                 .shuffleGrouping("spout")
         builder.setBolt("bolt2", bolt)
@@ -56,22 +64,22 @@ internal class KumulusStormTransformerTest {
 
         val topology = builder.createTopology()
 
-        val stormId = "test-topology"
+        val stormId = "testtopology"
 
         config.set(Config.TOPOLOGY_DISRUPTOR_BATCH_SIZE, 1)
         config.set(Config.TOPOLOGY_DISRUPTOR_WAIT_TIMEOUT_MILLIS, 0)
         config.set(Config.TOPOLOGY_DISRUPTOR_BATCH_TIMEOUT_MILLIS, 1)
+        config.set(Config.STORM_CLUSTER_MODE, "local")
 
         val kumulusTopology = KumulusStormTransformer.initializeTopology(builder, topology, config, stormId)
         kumulusTopology.prepare()
         kumulusTopology.start()
-
-
-//    val cluster = LocalCluster()
-//    cluster.submitTopology(stormId, config, topology)
         Thread.sleep(1000 * 60 * 5)
-
         kumulusTopology.stop()
+
+//        val cluster = LocalCluster()
+//        cluster.submitTopology(stormId, config, topology)
+//        Thread.sleep(1000 * 60 * 5)
 
         println("Done")
     }

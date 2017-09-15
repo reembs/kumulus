@@ -3,8 +3,8 @@ package org.oryx.kumulus
 import org.apache.storm.generated.GlobalStreamId
 import org.apache.storm.generated.Grouping
 import org.apache.storm.tuple.Fields
+import org.apache.storm.tuple.Tuple
 import org.oryx.kumulus.collector.KumulusBoltCollector
-import org.oryx.kumulus.collector.KumulusCollector
 import org.oryx.kumulus.collector.KumulusSpoutCollector
 import org.oryx.kumulus.component.*
 import java.util.*
@@ -16,80 +16,102 @@ import java.util.concurrent.atomic.AtomicInteger
 class KumulusTopology(
         private val components: List<KumulusComponent>,
         private val componentInputs: MutableMap<Pair<String, GlobalStreamId>, Grouping>,
-        private val componentToStreamToFields : MutableMap<String, Map<String, Fields>>,
+        private val componentToStreamToFields: MutableMap<String, Map<String, Fields>>,
         config: MutableMap<String, Any>
 ) : KumulusEmitter {
     private val queue: ArrayBlockingQueue<Runnable> = ArrayBlockingQueue(2000)
-    private val spoutExecutionPool: ThreadPoolExecutor
     private val boltExecutionPool: ThreadPoolExecutor
-    private val maxSpoutPending : Int
+    private val maxSpoutPending: Int
     private val currentPending = AtomicInteger(0)
     private val random = Random()
 
     private val acker = KumulusAcker()
 
     init {
-        spoutExecutionPool = ThreadPoolExecutor(4, 10, 20, TimeUnit.SECONDS, queue)
         boltExecutionPool = ThreadPoolExecutor(4, 10, 20, TimeUnit.SECONDS, queue)
         maxSpoutPending = config[org.apache.storm.Config.TOPOLOGY_MAX_SPOUT_PENDING] as Int? ?: 2
     }
 
     fun prepare() {
-        startQueuePolling()
-
         components.forEach { component ->
             val componentRegisteredOutputs: List<Pair<String, Pair<String, Grouping>>> =
                     componentInputs
                             .filter { it.key.second._componentId == component.name() }
                             .map { Pair(it.key.second._streamId, Pair(it.key.first, it.value)) }
 
-            val collector : KumulusCollector = when (component) {
+            component.queue.add(when (component) {
                 is KumulusSpout ->
-                    KumulusSpoutCollector(component, componentRegisteredOutputs, this, acker)
+                    SpoutPrepareMessage(
+                            KumulusSpoutCollector(component, componentRegisteredOutputs, this, acker))
                 is KumulusBolt ->
-                    KumulusBoltCollector(component, componentRegisteredOutputs, this, acker)
-                else -> {
-                    throw UnsupportedOperationException()
-                }
-            }
+                    BoltPrepareMessage(
+                            KumulusBoltCollector(component, componentRegisteredOutputs, this, acker))
 
-            component.queue.add(PrepareMessage(collector))
+                else ->
+                    throw UnsupportedOperationException()
+            })
         }
+
+        startQueuePolling()
     }
 
     private fun startQueuePolling() {
-        val poller = Thread({
+        val pollerRunnable = {
             while (true) {
+                var empty = true
                 components.forEach { c ->
                     val peekFirst = c.queue.peekFirst()
                     if (peekFirst != null && c.inUse.compareAndSet(false, true)) {
-                        val message = c.queue.pop() // single thread so no races
-
-
+                        val message = c.queue.poll()
+                        if (message == null) {
+                            c.inUse.set(false)
+                        } else {
+                            boltExecutionPool.execute({
+                                try {
+                                    when (message) {
+                                        is PrepareMessage<*> -> {
+                                            if (c.isSpout())
+                                                (c as KumulusSpout).prepare(message.collector as KumulusSpoutCollector)
+                                            else
+                                                (c as KumulusBolt).prepare(message.collector as KumulusBoltCollector)
+                                        }
+                                        is ExecuteMessage -> {
+                                            assert(!c.isSpout())
+                                            (c as KumulusBolt).execute(message.tuple)
+                                        }
+                                    }
+                                } finally {
+                                    c.inUse.set(false)
+                                }
+                            })
+                        }
+                        empty = false
                     }
                 }
-                Thread.sleep(100)
+                if (empty)
+                    Thread.sleep(System.getenv("BOLT_SLEEP_TIME")?.toLong() ?: 1)
             }
-        })
+        }
 
-        poller.isDaemon = true
-        poller.start()
-
+        for (i in 1..4) {
+            val poller = Thread(pollerRunnable)
+            poller.isDaemon = true
+            poller.start()
+        }
     }
 
     fun start() {
-        val spouts = components.filter { it is KumulusSpout } .map { it as KumulusSpout }
-        val bolts = components.filter { it !is KumulusSpout } .map { it as KumulusBolt }
+        val spouts = components.filter { it is KumulusSpout }.map { it as KumulusSpout }
 
-        val sleepMillis: Long = 20
+        val sleepMillis: Long = System.getenv("SPOUT_SLEEP_TIME")?.toLong() ?: 10
 
         while (true) {
             if (currentPending.get() < maxSpoutPending) {
                 var found = false
                 spouts.forEach {
-                    if (it.inUse.compareAndSet(false, true)) {
+                    if (it.isReady.get() && it.inUse.compareAndSet(false, true)) {
                         found = true
-                        spoutExecutionPool.execute({
+                        boltExecutionPool.execute({
                             try {
                                 it.nextTuple()
                             } finally {
@@ -108,25 +130,26 @@ class KumulusTopology(
     }
 
     fun stop() {
-        println("Max pool size: ${spoutExecutionPool.maximumPoolSize}")
-        spoutExecutionPool.shutdown()
-        spoutExecutionPool.awaitTermination(30, TimeUnit.SECONDS)
+        println("Max pool size: ${boltExecutionPool.maximumPoolSize}")
+        boltExecutionPool.shutdown()
+        boltExecutionPool.awaitTermination(30, TimeUnit.SECONDS)
     }
 
     override fun emit(
             self: KumulusComponent,
             dest: GlobalStreamId,
             grouping: Grouping,
-            tuple: MutableList<Any>?
-    ) : MutableList<Int> {
+            tuple: List<Any>,
+            anchors: Collection<Tuple>?
+    ): MutableList<Int> {
         val tasks = this.components.filter { it.name() == dest._componentId }
-        val emitToInstance : List<KumulusComponent>
+        val emitToInstance: List<KumulusComponent>
 
         emitToInstance =
                 if (grouping.is_set_all) {
                     tasks
                 } else if (grouping.is_set_none || grouping.is_set_shuffle || grouping.is_set_local_or_shuffle) {
-                    listOf(tasks[random.nextInt() % tasks.size])
+                    listOf(tasks[Math.abs(random.nextInt() % tasks.size)])
                 } else if (grouping.is_set_fields) {
                     val groupingFields = grouping._fields
                     val outputFields
@@ -135,8 +158,10 @@ class KumulusTopology(
                     var groupingHashes = 0L
 
                     groupingFields.forEach { gField ->
-                        val fieldValue = tuple?.get(outputFields?.fieldIndex(gField)!!)
-                        groupingHashes += fieldValue?.hashCode() ?: 0
+                        outputFields?.let {
+                            val fieldValue = tuple[it.fieldIndex(gField)]
+                            groupingHashes += fieldValue.hashCode()
+                        }
                     }
 
                     listOf(tasks[(groupingHashes % tasks.size).toInt()])
@@ -145,7 +170,7 @@ class KumulusTopology(
                 }
 
         emitToInstance.forEach {
-            execute(it, self, dest._streamId, tuple!!)
+            execute(it, self, dest._streamId, tuple, anchors)
         }
 
         return emitToInstance.map {
@@ -153,7 +178,7 @@ class KumulusTopology(
         }.toMutableList()
     }
 
-    private fun execute(dest: KumulusComponent, src: KumulusComponent, streamId: String, tuple: MutableList<Any>) {
-        dest.queue.add(ExecuteMessage(KumulusTuple(src, streamId, tuple)))
+    private fun execute(dest: KumulusComponent, src: KumulusComponent, streamId: String, tuple: List<Any>, anchors: Collection<Tuple>?) {
+        dest.queue.add(ExecuteMessage(KumulusTuple(src, streamId, tuple, anchors)))
     }
 }

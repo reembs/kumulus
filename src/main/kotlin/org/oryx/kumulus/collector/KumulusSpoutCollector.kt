@@ -5,13 +5,14 @@ import org.apache.storm.spout.ISpoutOutputCollector
 import org.oryx.kumulus.KumulusAcker
 import org.oryx.kumulus.KumulusEmitter
 import org.oryx.kumulus.component.KumulusComponent
+import org.oryx.kumulus.component.KumulusSpout
 
 class KumulusSpoutCollector(
         component: KumulusComponent,
         componentRegisteredOutputs: List<Pair<String, Pair<String, Grouping>>>,
         emitter: KumulusEmitter,
         acker : KumulusAcker
-) : KumulusCollector(component, componentRegisteredOutputs, emitter, acker), ISpoutOutputCollector {
+) : KumulusCollector<KumulusSpout>(component, componentRegisteredOutputs, emitter, acker), ISpoutOutputCollector {
     override fun emitDirect(taskId: Int, streamId: String?, tuple: MutableList<Any>?, messageId: Any?) {
         TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
     }

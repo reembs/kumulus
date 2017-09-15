@@ -7,18 +7,18 @@ import org.oryx.kumulus.KumulusAcker
 import org.oryx.kumulus.KumulusEmitter
 import org.oryx.kumulus.component.KumulusComponent
 
-abstract class KumulusCollector(
+abstract class KumulusCollector<T: KumulusComponent>(
         protected val component : KumulusComponent,
         private val componentRegisteredOutputs: List<Pair<String, Pair<String, Grouping>>>,
         private val emitter: KumulusEmitter,
         protected val acker : KumulusAcker
 ) {
-    private fun emit(streamId: String?, tuple: MutableList<Any>?) : MutableList<Int> {
+    private fun emit(streamId: String?, tuple: MutableList<Any>?, anchors: Collection<Tuple>?) : MutableList<Int> {
         val outputPairs = componentRegisteredOutputs.filter { it.first == streamId }
 
         val ret = mutableListOf<Int>()
         outputPairs.forEach {
-            ret += emitter.emit(component, GlobalStreamId(it.second.first, streamId), it.second.second, tuple)
+            ret += emitter.emit(component, GlobalStreamId(it.second.first, streamId), it.second.second, tuple!!, anchors)
         }
 
         return ret
@@ -26,11 +26,11 @@ abstract class KumulusCollector(
 
     fun emit(streamId: String?, anchors: MutableCollection<Tuple>?, tuple: MutableList<Any>?): MutableList<Int> {
         acker.expandTrees(anchors)
-        return emit(streamId, tuple)
+        return emit(streamId, tuple, anchors)
     }
 
     fun emit(streamId: String?, tuple: MutableList<Any>?, messageId: Any?): MutableList<Int> {
         acker.startTree(messageId)
-        return emit(streamId, tuple)
+        return emit(streamId, tuple, null)
     }
 }
