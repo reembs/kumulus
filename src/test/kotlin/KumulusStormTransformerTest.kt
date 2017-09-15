@@ -56,7 +56,7 @@ internal class KumulusStormTransformerTest {
             }
 
             override fun declareOutputFields(declarer: OutputFieldsDeclarer?) {
-                declarer?.declare(Fields("index", "nanotime"));
+                declarer?.declare(Fields("index", "nano-time"))
             }
         }
 
@@ -73,21 +73,26 @@ internal class KumulusStormTransformerTest {
 
             override fun execute(input: Tuple?, collector: BasicOutputCollector?) {
                 val index: Int = input?.getValueByField("index") as Int
-                val tookNanos = System.nanoTime() - input.getValueByField("nanotime") as Long
-                logger.debug { "[${context.thisComponentId}/${context.thisTaskId}] Index: $index, took: ${tookNanos / 1000.0 / 1000.0}ms" }
-                histogram.recordValue(tookNanos / 1000 )
+                val tookNanos = System.nanoTime() - input.getValueByField("nano-time") as Long
+
+                logger.debug { "[${context.thisComponentId}/${context.thisTaskId}] " +
+                        "Index: $index, took: ${tookNanos / 1000.0 / 1000.0}ms" }
+
+                histogram.recordValue(tookNanos / 1000)
+
                 count++
+
                 if (index % 10000 == 0) {
                     logger.info {
-                        StringBuilder("[index: $index] Latency histogram values for ${context.thisComponentId}/${context.thisTaskId}:\n").let { b ->
-                            LOG_PERCENTILES
-                                    .forEach { percentile ->
-                                        val duration = histogram.getValueAtPercentile(percentile)
-                                        val countUnder = histogram.totalCount - histogram.getCountBetweenValues(0, duration)
-                                        b.append("$percentile ($countUnder): ${toMillis(duration)}\n")
-                                    }
-                            return@let b
-                        }.toString()
+                        StringBuilder("[index: $index] Latency histogram values for " +
+                                "${context.thisComponentId}/${context.thisTaskId}:\n").also { sb ->
+                            LOG_PERCENTILES.forEach { percentile ->
+                                val duration = histogram.getValueAtPercentile(percentile)
+                                val countUnder = histogram.totalCount -
+                                        histogram.getCountBetweenValues(0, duration)
+                                sb.append("$percentile ($countUnder): ${toMillis(duration)}\n")
+                            }
+                        }
                     }
                 }
             }
