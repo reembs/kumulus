@@ -1,3 +1,5 @@
+import mu.KotlinLogging
+import org.HdrHistogram.Histogram
 import org.apache.storm.Config
 import org.apache.storm.LocalCluster
 import org.apache.storm.spout.SpoutOutputCollector
@@ -11,9 +13,19 @@ import org.apache.storm.tuple.Tuple
 import org.apache.storm.utils.Utils
 import org.junit.Test
 import org.oryx.kumulus.KumulusStormTransformer
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.atomic.AtomicLong
 
+private val logger = KotlinLogging.logger {}
+
+val LOG_PERCENTILES = arrayOf(5.0, 25.0, 50.0, 75.0, 90.0, 95.0, 98.0, 99.0, 99.9, 99.99)
 
 internal class KumulusStormTransformerTest {
+    companion object {
+        val finish = CountDownLatch(1)
+        var start = AtomicLong(0)
+    }
+
     @Test
     fun test1() {
         val builder = org.apache.storm.topology.TopologyBuilder()
@@ -23,34 +35,65 @@ internal class KumulusStormTransformerTest {
         val spout = object : BaseRichSpout() {
             var collector: SpoutOutputCollector? = null
 
+            var i = 0
+
             override fun nextTuple() {
-                println("nextTuple() called in ${this.hashCode()}")
-                val msgId = (Math.random() * 100000).toInt()
-                this.collector?.emit(listOf("yo $msgId", System.nanoTime()), msgId)
-                Thread.sleep(1000)
+                if (i < 100000) {
+                    i++
+                    logger.debug { "nextTuple() called in ${this.hashCode()}" }
+                    this.collector?.emit(listOf(i, System.nanoTime()), i)
+                    Thread.sleep(1)
+
+                    if (i == 100000) {
+                        finish.countDown()
+                    }
+                }
             }
 
             override fun open(conf: MutableMap<Any?, Any?>?, context: TopologyContext?, collector: SpoutOutputCollector?) {
                 this.collector = collector
+                start.compareAndSet(0L, System.currentTimeMillis())
             }
 
             override fun declareOutputFields(declarer: OutputFieldsDeclarer?) {
-                declarer?.declare(Fields("message", "nanotime"));
+                declarer?.declare(Fields("index", "nanotime"));
             }
         }
 
         val bolt = object : BaseBasicBolt() {
             lateinit var context: TopologyContext
+            lateinit var histogram: Histogram
+            var count = 0
 
             override fun prepare(stormConf: MutableMap<Any?, Any?>?, context: TopologyContext?) {
                 this.context = context!!
+                histogram = Histogram(4)
                 super.prepare(stormConf, context)
             }
 
             override fun execute(input: Tuple?, collector: BasicOutputCollector?) {
-                val message: String = input?.getValueByField("message") as String
-                val nanotime: Long = input.getValueByField("nanotime") as Long
-                println("[${context.thisComponentId}/${context.thisTaskId}-${context.thisTaskIndex}] Message: $message, took: ${(System.nanoTime() - nanotime) / 1000.0 / 1000.0}ms")
+                val index: Int = input?.getValueByField("index") as Int
+                val tookNanos = System.nanoTime() - input.getValueByField("nanotime") as Long
+                logger.debug { "[${context.thisComponentId}/${context.thisTaskId}] Index: $index, took: ${tookNanos / 1000.0 / 1000.0}ms" }
+                histogram.recordValue(tookNanos / 1000 )
+                count++
+                if (index % 10000 == 0) {
+                    logger.info {
+                        StringBuilder("[index: $index] Latency histogram values for ${context.thisComponentId}/${context.thisTaskId}:\n").let { b ->
+                            LOG_PERCENTILES
+                                    .forEach { percentile ->
+                                        val duration = histogram.getValueAtPercentile(percentile)
+                                        val countUnder = histogram.totalCount - histogram.getCountBetweenValues(0, duration)
+                                        b.append("$percentile ($countUnder): ${toMillis(duration)}\n")
+                                    }
+                            return@let b
+                        }.toString()
+                    }
+                }
+            }
+
+            fun toMillis(i: Long) : Double {
+                return i / 1000.0
             }
 
             override fun declareOutputFields(declarer: OutputFieldsDeclarer?) {}
@@ -74,13 +117,13 @@ internal class KumulusStormTransformerTest {
         val kumulusTopology = KumulusStormTransformer.initializeTopology(builder, topology, config, stormId)
         kumulusTopology.prepare()
         kumulusTopology.start()
-        Thread.sleep(1000 * 60 * 5)
+        finish.await()
         kumulusTopology.stop()
 
 //        val cluster = LocalCluster()
 //        cluster.submitTopology(stormId, config, topology)
-//        Thread.sleep(1000 * 60 * 5)
+//        finish.await()
 
-        println("Done")
+        println("Done, took: ${System.currentTimeMillis() - start.get()}")
     }
 }

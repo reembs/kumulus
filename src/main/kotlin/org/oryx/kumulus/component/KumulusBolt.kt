@@ -1,5 +1,6 @@
 package org.oryx.kumulus.component
 
+import mu.KotlinLogging
 import org.apache.storm.task.OutputCollector
 import org.apache.storm.task.TopologyContext
 import org.apache.storm.topology.IRichBolt
@@ -11,10 +12,14 @@ class KumulusBolt(
         context: TopologyContext,
         componentInstance: IRichBolt
 ) : KumulusComponent(config, context) {
+    companion object {
+        private val logger = KotlinLogging.logger {}
+    }
+
     private val bolt : IRichBolt = componentInstance
 
     fun prepare(collector: KumulusBoltCollector) {
-        println("Created bolt '${context.thisComponentId}' with taskId ${context.thisTaskId} (index: ${context.thisTaskIndex}). Object hashcode: ${this.hashCode()}")
+        logger.info { "Created bolt '${context.thisComponentId}' with taskId ${context.thisTaskId} (index: ${context.thisTaskIndex}). Object hashcode: ${this.hashCode()}" }
         bolt.prepare(config, context, OutputCollector(collector))
         super.prepare()
     }

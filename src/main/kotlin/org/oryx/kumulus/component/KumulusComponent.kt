@@ -1,6 +1,5 @@
 package org.oryx.kumulus.component
 
-import com.sun.org.apache.xpath.internal.operations.Bool
 import org.apache.storm.task.TopologyContext
 import org.oryx.kumulus.KumulusTuple
 import org.oryx.kumulus.collector.KumulusBoltCollector
@@ -14,9 +13,9 @@ abstract class KumulusComponent(
         protected val config: MutableMap<String, Any>,
         val context: TopologyContext
 ) {
-    public val inUse = AtomicBoolean(false)
-    public val isReady = AtomicBoolean(false)
-    public val queue : Deque<KumulusMessage> = ConcurrentLinkedDeque()
+    val inUse = AtomicBoolean(false)
+    val isReady = AtomicBoolean(false)
+    val queue : Deque<KumulusMessage> = ConcurrentLinkedDeque()
 
     fun name(): String {
         return context.thisComponentId
