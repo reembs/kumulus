@@ -135,7 +135,7 @@ class KumulusStormTransformer {
                 })
             })
 
-            return KumulusTopology(kComponents, kComponentInputs, config)
+            return KumulusTopology(kComponents, kComponentInputs, componentToStreamToFields, config)
         }
     }
 }

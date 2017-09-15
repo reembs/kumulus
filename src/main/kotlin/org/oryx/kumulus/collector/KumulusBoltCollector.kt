@@ -3,13 +3,16 @@ package org.oryx.kumulus.collector
 import org.apache.storm.generated.Grouping
 import org.apache.storm.task.IOutputCollector
 import org.apache.storm.tuple.Tuple
+import org.oryx.kumulus.KumulusAcker
 import org.oryx.kumulus.KumulusEmitter
+import org.oryx.kumulus.component.KumulusComponent
 
 class KumulusBoltCollector(
+        component: KumulusComponent,
         componentRegisteredOutputs: List<Pair<String, Pair<String, Grouping>>>,
-        emitter: KumulusEmitter
-) : KumulusCollector(componentRegisteredOutputs, emitter), IOutputCollector {
-
+        emitter: KumulusEmitter,
+        acker : KumulusAcker
+) : KumulusCollector(component, componentRegisteredOutputs, emitter, acker), IOutputCollector {
     override fun emitDirect(taskId: Int, streamId: String?, anchors: MutableCollection<Tuple>?, tuple: MutableList<Any>?) {
         TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
     }
@@ -19,7 +22,8 @@ class KumulusBoltCollector(
     }
 
     override fun fail(input: Tuple?) {
-        TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
+        component.inUse.set(false)
+        acker.fail(input)
     }
 
     override fun reportError(error: Throwable?) {
@@ -27,10 +31,7 @@ class KumulusBoltCollector(
     }
 
     override fun ack(input: Tuple?) {
-        TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
-    }
-
-    override fun emit(streamId: String?, anchors: MutableCollection<Tuple>?, tuple: MutableList<Any>?): MutableList<Int> {
-        return super.emit(streamId, tuple)
+        component.inUse.set(false)
+        acker.ack(input)
     }
 }
