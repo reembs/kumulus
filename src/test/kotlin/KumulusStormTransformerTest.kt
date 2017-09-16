@@ -48,6 +48,7 @@ internal class KumulusStormTransformerTest {
                         finish.countDown()
                     }
                 }
+                Thread.sleep(1)
             }
 
             override fun open(conf: MutableMap<Any?, Any?>?, context: TopologyContext?, collector: SpoutOutputCollector?) {

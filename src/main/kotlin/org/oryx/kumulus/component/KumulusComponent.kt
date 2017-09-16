@@ -15,7 +15,6 @@ abstract class KumulusComponent(
 ) {
     val inUse = AtomicBoolean(false)
     val isReady = AtomicBoolean(false)
-    val queue : Deque<KumulusMessage> = ConcurrentLinkedDeque()
 
     fun name(): String {
         return context.thisComponentId
@@ -38,19 +37,19 @@ fun KumulusComponent.isSpout() : Boolean {
     } ?: throw UnsupportedOperationException()
 }
 
-abstract class KumulusMessage(val type: Type) {
+abstract class KumulusMessage(val type: Type, val component: KumulusComponent) {
     enum class Type {
         PREPARE, EXECUTE
     }
 }
 
-abstract class PrepareMessage<in T: KumulusComponent>(val collector: KumulusCollector<in T>) :
-        KumulusMessage(Type.PREPARE)
+abstract class PrepareMessage<in T: KumulusComponent>(component: KumulusComponent, val collector: KumulusCollector<in T>) :
+        KumulusMessage(Type.PREPARE, component)
 
-class SpoutPrepareMessage(collector: KumulusSpoutCollector) :
-        PrepareMessage<KumulusSpout>(collector)
+class SpoutPrepareMessage(component: KumulusComponent, collector: KumulusSpoutCollector) :
+        PrepareMessage<KumulusSpout>(component, collector)
 
-class BoltPrepareMessage(collector: KumulusBoltCollector) :
-        PrepareMessage<KumulusBolt>(collector)
+class BoltPrepareMessage(component: KumulusComponent, collector: KumulusBoltCollector) :
+        PrepareMessage<KumulusBolt>(component, collector)
 
-class ExecuteMessage(val tuple: KumulusTuple) : KumulusMessage(Type.EXECUTE)
+class ExecuteMessage(component: KumulusComponent, val tuple: KumulusTuple) : KumulusMessage(Type.EXECUTE, component)

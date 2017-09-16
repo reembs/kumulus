@@ -1,5 +1,6 @@
 package org.oryx.kumulus
 
+import mu.KotlinLogging
 import org.apache.storm.generated.GlobalStreamId
 import org.apache.storm.generated.Grouping
 import org.apache.storm.tuple.Fields
@@ -8,9 +9,7 @@ import org.oryx.kumulus.collector.KumulusBoltCollector
 import org.oryx.kumulus.collector.KumulusSpoutCollector
 import org.oryx.kumulus.component.*
 import java.util.*
-import java.util.concurrent.ArrayBlockingQueue
-import java.util.concurrent.ThreadPoolExecutor
-import java.util.concurrent.TimeUnit
+import java.util.concurrent.*
 import java.util.concurrent.atomic.AtomicInteger
 
 class KumulusTopology(
@@ -24,12 +23,17 @@ class KumulusTopology(
     private val maxSpoutPending: Int
     private val currentPending = AtomicInteger(0)
     private val random = Random()
+    private val mainQueue = LinkedBlockingDeque<KumulusMessage>()
 
     private val acker = KumulusAcker()
 
     init {
         boltExecutionPool = ThreadPoolExecutor(4, 10, 20, TimeUnit.SECONDS, queue)
         maxSpoutPending = config[org.apache.storm.Config.TOPOLOGY_MAX_SPOUT_PENDING] as Int? ?: 2
+    }
+
+    companion object {
+        private val logger = KotlinLogging.logger {}
     }
 
     fun prepare() {
@@ -39,13 +43,13 @@ class KumulusTopology(
                             .filter { it.key.second._componentId == component.name() }
                             .map { Pair(it.key.second._streamId, Pair(it.key.first, it.value)) }
 
-            component.queue.add(when (component) {
+            mainQueue.add(when (component) {
                 is KumulusSpout ->
                     SpoutPrepareMessage(
-                            KumulusSpoutCollector(component, componentRegisteredOutputs, this, acker))
+                            component, KumulusSpoutCollector(component, componentRegisteredOutputs, this, acker))
                 is KumulusBolt ->
                     BoltPrepareMessage(
-                            KumulusBoltCollector(component, componentRegisteredOutputs, this, acker))
+                            component, KumulusBoltCollector(component, componentRegisteredOutputs, this, acker))
 
                 else ->
                     throw UnsupportedOperationException()
@@ -58,45 +62,42 @@ class KumulusTopology(
     private fun startQueuePolling() {
         val pollerRunnable = {
             while (true) {
-                var empty = true
-                components.forEach { c ->
-                    val peekFirst = c.queue.peekFirst()
-                    if (peekFirst != null && c.inUse.compareAndSet(false, true)) {
-                        val message = c.queue.poll()
-                        if (message == null) {
-                            c.inUse.set(false)
-                        } else {
-                            boltExecutionPool.execute({
-                                try {
-                                    when (message) {
-                                        is PrepareMessage<*> -> {
-                                            if (c.isSpout())
-                                                (c as KumulusSpout).prepare(message.collector as KumulusSpoutCollector)
-                                            else
-                                                (c as KumulusBolt).prepare(message.collector as KumulusBoltCollector)
-                                        }
-                                        is ExecuteMessage -> {
-                                            assert(!c.isSpout())
-                                            (c as KumulusBolt).execute(message.tuple)
+                val message = mainQueue.take()!!
+                val c = message.component
+                if (c.inUse.compareAndSet(false, true)) {
+                    boltExecutionPool.execute({
+                        try {
+                            when (message) {
+                                is PrepareMessage<*> -> {
+                                    if (c.isSpout())
+                                        (c as KumulusSpout).prepare(message.collector as KumulusSpoutCollector)
+                                    else
+                                        (c as KumulusBolt).prepare(message.collector as KumulusBoltCollector)
+                                }
+                                is ExecuteMessage -> {
+                                    assert(!c.isSpout()) {
+                                        logger.error {
+                                            "Execute message got to a spout '${c.context.thisComponentId}', " +
+                                                    "this shouldn't happen."
                                         }
                                     }
-                                } finally {
-                                    c.inUse.set(false)
+                                    (c as KumulusBolt).execute(message.tuple)
                                 }
-                            })
+                            }
+                        } finally {
+                            c.inUse.set(false)
                         }
-                        empty = false
-                    }
+                    })
+                } else {
+                    logger.info { "Component ${c.context.thisComponentId}/${c.taskId()} is currently busy" }
+                    mainQueue.push(message)
                 }
-                if (empty)
-                    Thread.sleep(System.getenv("BOLT_SLEEP_TIME")?.toLong() ?: 1)
             }
         }
 
-        for (i in 1..4) {
-            val poller = Thread(pollerRunnable)
-            poller.isDaemon = true
-            poller.start()
+        Thread(pollerRunnable).apply {
+            this.isDaemon = true
+            this.start()
         }
     }
 
@@ -184,6 +185,6 @@ class KumulusTopology(
     }
 
     private fun execute(dest: KumulusComponent, src: KumulusComponent, streamId: String, tuple: List<Any>, anchors: Collection<Tuple>?) {
-        dest.queue.add(ExecuteMessage(KumulusTuple(src, streamId, tuple, anchors)))
+        mainQueue.add(ExecuteMessage(dest, KumulusTuple(src, streamId, tuple, anchors)))
     }
 }

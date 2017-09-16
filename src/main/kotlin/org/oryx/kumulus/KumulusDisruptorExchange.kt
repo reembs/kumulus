@@ -1,23 +1,13 @@
 package org.oryx.kumulus
 
-import com.lmax.disruptor.EventHandler
-import com.lmax.disruptor.dsl.Disruptor
-import java.nio.ByteBuffer
-import java.util.concurrent.Executors
 import com.lmax.disruptor.EventFactory
+import com.lmax.disruptor.EventHandler
 import com.lmax.disruptor.RingBuffer
+import com.lmax.disruptor.dsl.Disruptor
+import org.apache.storm.shade.com.google.common.util.concurrent.ThreadFactoryBuilder
+import java.nio.ByteBuffer
 
-data class LongEvent(private var value: Long = 0) {
-    fun set(value: Long) {
-        this.value = value
-    }
-}
-
-class LongEventHandler : EventHandler<LongEvent> {
-    override fun onEvent(event: LongEvent, sequence: Long, endOfBatch: Boolean) {
-        println("Event: " + event)
-    }
-}
+data class LongEvent(public var nanoTime: Long = 0)
 
 class LongEventFactory : EventFactory<LongEvent> {
     override fun newInstance(): LongEvent {
@@ -30,8 +20,7 @@ class LongEventProducer(private val ringBuffer: RingBuffer<LongEvent>) {
         val sequence = ringBuffer.next()  // Grab the next sequence
         try {
             val event = ringBuffer.get(sequence) // Get the entry in the Disruptor
-            // for the sequence
-            event.set(bb.getLong(0))  // Fill with data
+            event.nanoTime = System.nanoTime()
         } finally {
             ringBuffer.publish(sequence)
         }
@@ -39,29 +28,34 @@ class LongEventProducer(private val ringBuffer: RingBuffer<LongEvent>) {
 }
 
 object LongEventMain {
-    @Throws(Exception::class)
     @JvmStatic
     fun main(args: Array<String>) {
-        // Executor that will be used to construct new threads for consumers
-        val executor = Executors.newCachedThreadPool()
-
         // The factory for the event
         val factory = LongEventFactory()
 
         // Specify the size of the ring buffer, must be power of 2.
-        val bufferSize = 1024
+        val bufferSize = 1
+
+        val threadFactory =
+                ThreadFactoryBuilder()
+                        .setDaemon(true)
+                        .setNameFormat("disruptor-thread-%d")
+                        .build()!!
 
         // Construct the Disruptor
-        val disruptor = Disruptor(factory, bufferSize, executor)
+        val disruptor = Disruptor(factory, bufferSize, threadFactory)
 
         // Connect the handler
-        disruptor.handleEventsWith(LongEventHandler())
+        disruptor.handleEventsWith(EventHandler<LongEvent> {
+            event, sequence, endOfBatch ->
+            println("TOOK: ${(System.nanoTime() - event.nanoTime) / 1000.0 / 1000.0}, event, sequence, endOfBatch = $event, $sequence, $endOfBatch")
+        })
 
         // Start the Disruptor, starts all threads running
         disruptor.start()
 
         // Get the ring buffer from the Disruptor to be used for publishing.
-        val ringBuffer = disruptor.getRingBuffer()
+        val ringBuffer = disruptor.ringBuffer!!
 
         val producer = LongEventProducer(ringBuffer)
 
