@@ -26,6 +26,7 @@ internal class KumulusStormTransformerTest {
         val finish = CountDownLatch(1)
         var start = AtomicLong(0)
         val TOTAL_ITERATIONS = 10000
+        val SINK_BOLT_NAME = "bolt4"
     }
 
     @Test
@@ -79,35 +80,43 @@ internal class KumulusStormTransformerTest {
                 logger.debug { "[${context.thisComponentId}/${context.thisTaskId}] " +
                         "Index: $index, took: ${tookNanos / 1000.0 / 1000.0}ms" }
 
-                histogram.recordValue(tookNanos / 1000)
-
                 count++
 
-                if (index % (TOTAL_ITERATIONS/10) == 0) {
-                    logger.info {
-                        StringBuilder("[index: $index] Latency histogram values for " +
-                                "${context.thisComponentId}/${context.thisTaskId}:\n").also { sb ->
-                            LOG_PERCENTILES.forEach { percentile ->
-                                val duration = histogram.getValueAtPercentile(percentile)
-                                val countUnder = histogram.totalCount -
-                                        histogram.getCountBetweenValues(0, duration)
-                                sb.append("$percentile ($countUnder): ${toMillis(duration)}\n")
+                if (context.thisComponentId == SINK_BOLT_NAME) {
+                    histogram.recordValue(tookNanos / 1000)
+
+                    if (index % (TOTAL_ITERATIONS / 10) == 0) {
+                        logger.info {
+                            StringBuilder("[index: $index] Latency histogram values for " +
+                                    "${context.thisComponentId}/${context.thisTaskId}:\n").also { sb ->
+                                LOG_PERCENTILES.forEach { percentile ->
+                                    val duration = histogram.getValueAtPercentile(percentile)
+                                    val countUnder = histogram.totalCount -
+                                            histogram.getCountBetweenValues(0, duration)
+                                    sb.append("$percentile ($countUnder): ${toMillis(duration)}\n")
+                                }
                             }
                         }
                     }
                 }
+
+                collector?.emit(input.values)
             }
 
             fun toMillis(i: Long) : Double {
                 return i / 1000.0
             }
 
-            override fun declareOutputFields(declarer: OutputFieldsDeclarer?) {}
+            override fun declareOutputFields(declarer: OutputFieldsDeclarer?) {
+                declarer?.declare(Fields("index", "nano-time"))
+            }
         }
 
         builder.setSpout("spout", spout, 1)
         builder.setBolt("bolt", bolt).shuffleGrouping("spout")
-        builder.setBolt("bolt2", bolt).shuffleGrouping("spout")
+        builder.setBolt("bolt2", bolt).shuffleGrouping("bolt")
+        builder.setBolt("bolt3", bolt).shuffleGrouping("bolt2")
+        builder.setBolt(SINK_BOLT_NAME, bolt).shuffleGrouping("bolt3")
 
         val topology = builder.createTopology()!!
 

@@ -24,7 +24,7 @@ class KumulusBoltCollector(
 
     override fun fail(input: Tuple?) {
         component.inUse.set(false)
-        acker.fail(input)
+        acker.fail(component, input)
     }
 
     override fun reportError(error: Throwable?) {
@@ -33,6 +33,6 @@ class KumulusBoltCollector(
 
     override fun ack(input: Tuple?) {
         component.inUse.set(false)
-        acker.ack(input)
+        acker.ack(component, input)
     }
 }

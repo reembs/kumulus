@@ -21,7 +21,6 @@ class KumulusTopology(
     private val queue: ArrayBlockingQueue<Runnable> = ArrayBlockingQueue(2000)
     private val boltExecutionPool: ThreadPoolExecutor
     private val maxSpoutPending: Int
-    private val currentPending = AtomicInteger(0)
     private val random = Random()
     private val mainQueue = LinkedBlockingDeque<KumulusMessage>()
 
@@ -89,7 +88,7 @@ class KumulusTopology(
                         }
                     })
                 } else {
-                    logger.info { "Component ${c.context.thisComponentId}/${c.taskId()} is currently busy" }
+                    logger.debug { "Component ${c.context.thisComponentId}/${c.taskId()} is currently busy" }
                     mainQueue.push(message)
                 }
             }
@@ -103,35 +102,21 @@ class KumulusTopology(
 
     fun start() {
         val spouts = components.filter { it is KumulusSpout }.map { it as KumulusSpout }
-
-        val sleepMillis: Long = System.getenv("SPOUT_SLEEP_TIME")?.toLong() ?: 10
-
-        Thread {
-            while (true) {
-                if (currentPending.get() < maxSpoutPending) {
-                    var found = false
-                    spouts.forEach {
-                        if (it.isReady.get() && it.inUse.compareAndSet(false, true)) {
-                            found = true
-                            boltExecutionPool.execute({
-                                try {
-                                    it.nextTuple()
-                                } finally {
-                                    it.inUse.set(false)
-                                }
-                            })
+        spouts.forEach { spout ->
+            Thread {
+                while (true) {
+                    if (spout.isReady.get() && spout.inUse.compareAndSet(false, true)) {
+                        try {
+                            spout.nextTuple()
+                        } finally {
+                            spout.inUse.set(false)
                         }
                     }
-                    if (!found) {
-                        Thread.sleep(sleepMillis)
-                    }
-                } else {
-                    Thread.sleep(sleepMillis)
                 }
+            }.also {
+                it.isDaemon = true
+                it.start()
             }
-        }.also {
-            it.isDaemon = true
-            it.start()
         }
     }
 
