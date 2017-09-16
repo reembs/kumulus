@@ -22,8 +22,10 @@ val LOG_PERCENTILES = arrayOf(5.0, 25.0, 50.0, 75.0, 90.0, 95.0, 98.0, 99.0, 99.
 
 internal class KumulusStormTransformerTest {
     companion object {
+        @JvmStatic
         val finish = CountDownLatch(1)
         var start = AtomicLong(0)
+        val TOTAL_ITERATIONS = 10000
     }
 
     @Test
@@ -38,13 +40,11 @@ internal class KumulusStormTransformerTest {
             var i = 0
 
             override fun nextTuple() {
-                if (i < 100000) {
+                if (i < TOTAL_ITERATIONS) {
                     i++
                     logger.debug { "nextTuple() called in ${this.hashCode()}" }
                     this.collector?.emit(listOf(i, System.nanoTime()), i)
-                    Thread.sleep(1)
-
-                    if (i == 100000) {
+                    if (i == TOTAL_ITERATIONS) {
                         finish.countDown()
                     }
                 }
@@ -82,7 +82,7 @@ internal class KumulusStormTransformerTest {
 
                 count++
 
-                if (index % 10000 == 0) {
+                if (index % (TOTAL_ITERATIONS/10) == 0) {
                     logger.info {
                         StringBuilder("[index: $index] Latency histogram values for " +
                                 "${context.thisComponentId}/${context.thisTaskId}:\n").also { sb ->
@@ -105,12 +105,10 @@ internal class KumulusStormTransformerTest {
         }
 
         builder.setSpout("spout", spout, 1)
-        builder.setBolt("bolt", bolt, 5)
-                .shuffleGrouping("spout")
-        builder.setBolt("bolt2", bolt)
-                .shuffleGrouping("spout")
+        builder.setBolt("bolt", bolt).shuffleGrouping("spout")
+        builder.setBolt("bolt2", bolt).shuffleGrouping("spout")
 
-        val topology = builder.createTopology()
+        val topology = builder.createTopology()!!
 
         val stormId = "testtopology"
 
@@ -119,7 +117,8 @@ internal class KumulusStormTransformerTest {
         config.set(Config.TOPOLOGY_DISRUPTOR_BATCH_TIMEOUT_MILLIS, 1)
         config.set(Config.STORM_CLUSTER_MODE, "local")
 
-        val kumulusTopology = KumulusStormTransformer.initializeTopology(builder, topology, config, stormId)
+        val kumulusTopology =
+                KumulusStormTransformer.initializeTopology(builder, topology, config, stormId)
         kumulusTopology.prepare()
         kumulusTopology.start()
         finish.await()

@@ -105,27 +105,32 @@ class KumulusTopology(
 
         val sleepMillis: Long = System.getenv("SPOUT_SLEEP_TIME")?.toLong() ?: 10
 
-        while (true) {
-            if (currentPending.get() < maxSpoutPending) {
-                var found = false
-                spouts.forEach {
-                    if (it.isReady.get() && it.inUse.compareAndSet(false, true)) {
-                        found = true
-                        boltExecutionPool.execute({
-                            try {
-                                it.nextTuple()
-                            } finally {
-                                it.inUse.set(false)
-                            }
-                        })
+        Thread {
+            while (true) {
+                if (currentPending.get() < maxSpoutPending) {
+                    var found = false
+                    spouts.forEach {
+                        if (it.isReady.get() && it.inUse.compareAndSet(false, true)) {
+                            found = true
+                            boltExecutionPool.execute({
+                                try {
+                                    it.nextTuple()
+                                } finally {
+                                    it.inUse.set(false)
+                                }
+                            })
+                        }
                     }
-                }
-                if (!found) {
+                    if (!found) {
+                        Thread.sleep(sleepMillis)
+                    }
+                } else {
                     Thread.sleep(sleepMillis)
                 }
-            } else {
-                Thread.sleep(sleepMillis)
             }
+        }.also {
+            it.isDaemon = true
+            it.start()
         }
     }
 
