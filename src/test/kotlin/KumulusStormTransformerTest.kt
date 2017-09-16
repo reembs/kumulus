@@ -25,7 +25,7 @@ internal class KumulusStormTransformerTest {
         @JvmStatic
         val finish = CountDownLatch(1)
         var start = AtomicLong(0)
-        val TOTAL_ITERATIONS = 10000
+        val TOTAL_ITERATIONS = 1000
         val SINK_BOLT_NAME = "bolt4"
     }
 
@@ -45,11 +45,7 @@ internal class KumulusStormTransformerTest {
                     i++
                     logger.debug { "nextTuple() called in ${this.hashCode()}" }
                     this.collector?.emit(listOf(i, System.nanoTime()), i)
-                    if (i == TOTAL_ITERATIONS) {
-                        finish.countDown()
-                    }
                 }
-                Thread.sleep(1)
             }
 
             override fun open(conf: MutableMap<Any?, Any?>?, context: TopologyContext?, collector: SpoutOutputCollector?) {
@@ -62,12 +58,17 @@ internal class KumulusStormTransformerTest {
             }
 
             override fun fail(msgId: Any?) {
-                logger.info { "Got fail for $msgId" }
+                logger.trace { "Got fail for $msgId" }
                 super.fail(msgId)
             }
 
             override fun ack(msgId: Any?) {
-                logger.info { "Got ack for $msgId" }
+                logger.trace { "Got ack for $msgId" }
+
+                if (msgId as Int == TOTAL_ITERATIONS) {
+                    finish.countDown()
+                }
+
                 super.ack(msgId)
             }
         }
@@ -135,6 +136,7 @@ internal class KumulusStormTransformerTest {
         config.set(Config.TOPOLOGY_DISRUPTOR_WAIT_TIMEOUT_MILLIS, 0)
         config.set(Config.TOPOLOGY_DISRUPTOR_BATCH_TIMEOUT_MILLIS, 1)
         config.set(Config.STORM_CLUSTER_MODE, "local")
+        config.set(Config.TOPOLOGY_MAX_SPOUT_PENDING, 1)
 
         val kumulusTopology =
                 KumulusStormTransformer.initializeTopology(builder, topology, config, stormId)

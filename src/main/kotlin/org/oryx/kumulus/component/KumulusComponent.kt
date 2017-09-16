@@ -5,8 +5,7 @@ import org.oryx.kumulus.KumulusTuple
 import org.oryx.kumulus.collector.KumulusBoltCollector
 import org.oryx.kumulus.collector.KumulusCollector
 import org.oryx.kumulus.collector.KumulusSpoutCollector
-import java.util.*
-import java.util.concurrent.ConcurrentLinkedDeque
+import java.util.concurrent.CountDownLatch
 import java.util.concurrent.atomic.AtomicBoolean
 
 abstract class KumulusComponent(
@@ -43,7 +42,10 @@ abstract class KumulusMessage(val type: Type, val component: KumulusComponent) {
     }
 }
 
-abstract class PrepareMessage<in T: KumulusComponent>(component: KumulusComponent, val collector: KumulusCollector<in T>) :
+abstract class PrepareMessage<in T: KumulusComponent>(
+        component: KumulusComponent,
+        val collector: KumulusCollector<in T>
+) :
         KumulusMessage(Type.PREPARE, component)
 
 class SpoutPrepareMessage(component: KumulusComponent, collector: KumulusSpoutCollector) :
@@ -52,6 +54,7 @@ class SpoutPrepareMessage(component: KumulusComponent, collector: KumulusSpoutCo
 class BoltPrepareMessage(component: KumulusComponent, collector: KumulusBoltCollector) :
         PrepareMessage<KumulusBolt>(component, collector)
 
-class ExecuteMessage(component: KumulusComponent, val tuple: KumulusTuple) : KumulusMessage(Type.EXECUTE, component)
+class ExecuteMessage(component: KumulusComponent, val tuple: KumulusTuple) :
+        KumulusMessage(Type.EXECUTE, component)
 
 class AckMessage(spout: KumulusSpout, val spoutMessageId: Any, val ack: Boolean) : KumulusMessage(Type.ACK, spout)

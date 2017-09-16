@@ -5,6 +5,7 @@ import org.apache.storm.spout.SpoutOutputCollector
 import org.apache.storm.task.TopologyContext
 import org.apache.storm.topology.IRichSpout
 import org.oryx.kumulus.collector.KumulusSpoutCollector
+import java.util.concurrent.LinkedBlockingDeque
 
 class KumulusSpout(
         config: MutableMap<String, Any>,
@@ -17,21 +18,27 @@ class KumulusSpout(
 
     private val spout: IRichSpout = componentInstance
 
+    val queue = LinkedBlockingDeque<AckMessage>()
+
     fun prepare(collector: KumulusSpoutCollector) {
         logger.info { "Created spout '${context.thisComponentId}' with taskId ${context.thisTaskId} (index: ${context.thisTaskIndex}). Object hashcode: ${this.hashCode()}" }
         spout.open(config, context, SpoutOutputCollector(collector))
         super.prepare()
+        inUse.set(false)
     }
 
     fun nextTuple() {
-        spout.nextTuple()
-    }
-
-    fun complete(ack: Boolean, messageId: Any?) {
-        if (ack) {
-            spout.ack(messageId)
-        } else {
-            spout.fail(messageId)
+        try {
+            queue.poll()?.let { ackMsg ->
+                if (ackMsg.ack) {
+                    spout.ack(ackMsg.spoutMessageId)
+                } else {
+                    spout.fail(ackMsg.spoutMessageId)
+                }
+            }
+            spout.nextTuple()
+        } finally {
+            inUse.set(false)
         }
     }
 }

@@ -1,6 +1,5 @@
 package org.oryx.kumulus.component
 
-import clojure.lang.*
 import org.apache.storm.generated.GlobalStreamId
 import org.apache.storm.task.GeneralTopologyContext
 import org.apache.storm.tuple.Fields

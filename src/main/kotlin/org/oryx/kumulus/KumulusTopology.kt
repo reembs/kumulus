@@ -22,12 +22,13 @@ class KumulusTopology(
     private val maxSpoutPending: Int
     private val random = Random()
     private val mainQueue = LinkedBlockingDeque<KumulusMessage>()
-
-    private val acker = KumulusAcker(this)
+    private val acker: KumulusAcker
 
     init {
         boltExecutionPool = ThreadPoolExecutor(4, 10, 20, TimeUnit.SECONDS, queue)
-        maxSpoutPending = config[org.apache.storm.Config.TOPOLOGY_MAX_SPOUT_PENDING] as Int? ?: 2
+        boltExecutionPool.prestartAllCoreThreads()
+        maxSpoutPending = config[org.apache.storm.Config.TOPOLOGY_MAX_SPOUT_PENDING] as Int? ?: 0
+        acker = KumulusAcker(this, maxSpoutPending)
     }
 
     companion object {
@@ -64,35 +65,24 @@ class KumulusTopology(
                 val c = message.component
                 if (c.inUse.compareAndSet(false, true)) {
                     boltExecutionPool.execute({
-                        try {
-                            when (message) {
-                                is PrepareMessage<*> -> {
-                                    if (c.isSpout())
-                                        (c as KumulusSpout).prepare(message.collector as KumulusSpoutCollector)
-                                    else
-                                        (c as KumulusBolt).prepare(message.collector as KumulusBoltCollector)
-                                }
-                                is ExecuteMessage -> {
-                                    assert(!c.isSpout()) {
-                                        logger.error {
-                                            "Execute message got to a spout '${c.context.thisComponentId}', " +
-                                                    "this shouldn't happen."
-                                        }
-                                    }
-                                    (c as KumulusBolt).execute(message.tuple)
-                                }
-                                is AckMessage -> {
-                                    assert(c.isSpout()) {
-                                        logger.error {
-                                            "Ack message got to a bolt '${c.context.thisComponentId}', " +
-                                                    "this shouldn't happen."
-                                        }
-                                    }
-                                    (c as KumulusSpout).complete(message.ack, message.spoutMessageId)
-                                }
+                        when (message) {
+                            is PrepareMessage<*> -> {
+                                if (c.isSpout())
+                                    (c as KumulusSpout).prepare(message.collector as KumulusSpoutCollector)
+                                else
+                                    (c as KumulusBolt).prepare(message.collector as KumulusBoltCollector)
                             }
-                        } finally {
-                            c.inUse.set(false)
+                            is ExecuteMessage -> {
+                                assert(!c.isSpout()) {
+                                    logger.error {
+                                        "Execute message got to a spout '${c.context.thisComponentId}', " +
+                                                "this shouldn't happen."
+                                    }
+                                }
+                                (c as KumulusBolt).execute(message.tuple)
+                            }
+                            else ->
+                                throw UnsupportedOperationException("Operation of type ${c.javaClass.canonicalName} is unsupported")
                         }
                     })
                 } else {
@@ -113,17 +103,14 @@ class KumulusTopology(
         spouts.forEach { spout ->
             Thread {
                 while (true) {
-                    if (spout.isReady.get() && spout.inUse.compareAndSet(false, true)) {
-                        try {
-                            spout.nextTuple()
-                        } finally {
-                            spout.inUse.set(false)
-                        }
+                    if (spout.isReady.get()) {
+                        acker.waitForSpoutAvailability()
+                        spout.nextTuple()
                     }
                 }
-            }.also {
-                it.isDaemon = true
-                it.start()
+            }.apply {
+                this.isDaemon = true
+                this.start()
             }
         }
     }
@@ -179,6 +166,6 @@ class KumulusTopology(
 
     // KumulusEmitter impl
     override fun completeMessageProcessing(spout: KumulusSpout, spoutMessageId: Any, ack: Boolean) {
-        mainQueue.add(AckMessage(spout, spoutMessageId, ack))
+        spout.queue.add(AckMessage(spout, spoutMessageId, ack))
     }
 }

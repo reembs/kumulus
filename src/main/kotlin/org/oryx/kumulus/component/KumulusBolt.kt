@@ -22,6 +22,7 @@ class KumulusBolt(
         logger.info { "Created bolt '${context.thisComponentId}' with taskId ${context.thisTaskId} (index: ${context.thisTaskIndex}). Object hashcode: ${this.hashCode()}" }
         bolt.prepare(config, context, OutputCollector(collector))
         super.prepare()
+        inUse.set(false)
     }
 
     fun execute(tuple: KumulusTuple) {

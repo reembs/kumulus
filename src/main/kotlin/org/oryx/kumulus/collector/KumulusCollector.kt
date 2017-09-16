@@ -10,6 +10,7 @@ import org.oryx.kumulus.KumulusTuple
 import org.oryx.kumulus.component.KumulusComponent
 import org.oryx.kumulus.component.KumulusSpout
 import org.oryx.kumulus.component.TupleImpl
+import java.util.concurrent.CountDownLatch
 
 abstract class KumulusCollector<T: KumulusComponent>(
         protected val component : KumulusComponent,
@@ -31,10 +32,17 @@ abstract class KumulusCollector<T: KumulusComponent>(
 
             val emitToInstance= emitter.getDestinations(component, dest, it.second.second, tuple, anchors)
 
-            emitToInstance.forEach { destComponent ->
+            // First, expand all trees
+            val executes = emitToInstance.map { destComponent ->
                 val kumulusTuple = KumulusTuple(component, streamId ?: Utils.DEFAULT_STREAM_ID, tuple, anchors, messageId)
                 acker.expandTrees(component, destComponent.taskId(), kumulusTuple)
-                emitter.execute(destComponent, kumulusTuple)
+                Pair(destComponent, kumulusTuple)
+            }.toList()
+
+            /* Only after expending can we execute next bolts to prevent race that
+               would cause premature acking with the spout */
+            executes.forEach {
+                emitter.execute(it.first, it.second)
             }
 
             ret += emitToInstance.map {
@@ -46,11 +54,11 @@ abstract class KumulusCollector<T: KumulusComponent>(
     }
 
     fun emit(streamId: String?, anchors: MutableCollection<Tuple>?, tuple: MutableList<Any>): MutableList<Int> {
-        val messageId= anchors?.map {
+        val messageId= anchors!!.map {
             (it as TupleImpl).spoutMessageId
-        }?.toSet()?.apply {
+        }.toSet().apply {
             assert(this.size <= 1) { "Found more than a single message ID in emitted anchors: $anchors" }
-        }?.first()
+        }.first()
         return emit(streamId, tuple, messageId!!, anchors)
     }
 
