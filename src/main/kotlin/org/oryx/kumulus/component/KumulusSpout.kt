@@ -26,4 +26,12 @@ class KumulusSpout(
     fun nextTuple() {
         spout.nextTuple()
     }
+
+    fun complete(ack: Boolean, messageId: Any?) {
+        if (ack) {
+            spout.ack(messageId)
+        } else {
+            spout.fail(messageId)
+        }
+    }
 }

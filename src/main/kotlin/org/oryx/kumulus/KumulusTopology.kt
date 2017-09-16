@@ -10,7 +10,6 @@ import org.oryx.kumulus.collector.KumulusSpoutCollector
 import org.oryx.kumulus.component.*
 import java.util.*
 import java.util.concurrent.*
-import java.util.concurrent.atomic.AtomicInteger
 
 class KumulusTopology(
         private val components: List<KumulusComponent>,
@@ -24,7 +23,7 @@ class KumulusTopology(
     private val random = Random()
     private val mainQueue = LinkedBlockingDeque<KumulusMessage>()
 
-    private val acker = KumulusAcker()
+    private val acker = KumulusAcker(this)
 
     init {
         boltExecutionPool = ThreadPoolExecutor(4, 10, 20, TimeUnit.SECONDS, queue)
@@ -82,6 +81,15 @@ class KumulusTopology(
                                     }
                                     (c as KumulusBolt).execute(message.tuple)
                                 }
+                                is AckMessage -> {
+                                    assert(c.isSpout()) {
+                                        logger.error {
+                                            "Ack message got to a bolt '${c.context.thisComponentId}', " +
+                                                    "this shouldn't happen."
+                                        }
+                                    }
+                                    (c as KumulusSpout).complete(message.ack, message.spoutMessageId)
+                                }
                             }
                         } finally {
                             c.inUse.set(false)
@@ -126,13 +134,14 @@ class KumulusTopology(
         boltExecutionPool.awaitTermination(30, TimeUnit.SECONDS)
     }
 
-    override fun emit(
+    // KumulusEmitter impl
+    override fun getDestinations(
             self: KumulusComponent,
             dest: GlobalStreamId,
             grouping: Grouping,
             tuple: List<Any>,
             anchors: Collection<Tuple>?
-    ): MutableList<Int> {
+    ): List<KumulusComponent> {
         val tasks = this.components.filter { it.name() == dest._componentId }
         val emitToInstance: List<KumulusComponent>
 
@@ -160,16 +169,16 @@ class KumulusTopology(
                     throw UnsupportedOperationException("Grouping type $grouping isn't currently supported by Kumulus")
                 }
 
-        emitToInstance.forEach {
-            execute(it, self, dest._streamId, tuple, anchors)
-        }
-
-        return emitToInstance.map {
-            it.taskId()
-        }.toMutableList()
+        return emitToInstance
     }
 
-    private fun execute(dest: KumulusComponent, src: KumulusComponent, streamId: String, tuple: List<Any>, anchors: Collection<Tuple>?) {
-        mainQueue.add(ExecuteMessage(dest, KumulusTuple(src, streamId, tuple, anchors)))
+    // KumulusEmitter impl
+    override fun execute(destComponent: KumulusComponent, kumulusTuple: KumulusTuple) {
+        mainQueue.add(ExecuteMessage(destComponent, kumulusTuple))
+    }
+
+    // KumulusEmitter impl
+    override fun completeMessageProcessing(spout: KumulusSpout, spoutMessageId: Any, ack: Boolean) {
+        mainQueue.add(AckMessage(spout, spoutMessageId, ack))
     }
 }

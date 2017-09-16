@@ -8,18 +8,21 @@ import org.apache.storm.tuple.MessageId
 import org.apache.storm.tuple.Tuple
 
 class TupleImpl : Tuple {
+    val spoutMessageId: Any?
+
     private val context: GeneralTopologyContext
     private val values: List<Any>
     private val taskId: Int
     private val streamId: String
     private val id: MessageId
 
-    constructor(context: GeneralTopologyContext, values: List<Any>, taskId: Int, streamId: String, id: MessageId) {
+    constructor(context: GeneralTopologyContext, values: List<Any>, taskId: Int, streamId: String, id: MessageId, spoutMessageId: Any?) {
         this.context = context
         this.values = values
         this.taskId = taskId
         this.streamId = streamId
         this.id = id
+        this.spoutMessageId = spoutMessageId
         val componentId = context.getComponentId(taskId)
         val schema = context.getComponentOutputFields(componentId, streamId)
         if (values.size != schema.size()) {
@@ -31,7 +34,7 @@ class TupleImpl : Tuple {
     }
 
     constructor(context: GeneralTopologyContext, values: List<Any>, taskId: Int, streamId: String) :
-            this(context, values, taskId, streamId, MessageId.makeUnanchored())
+            this(context, values, taskId, streamId, MessageId.makeUnanchored(), null)
 
 
     override fun size(): Int {

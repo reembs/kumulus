@@ -39,7 +39,7 @@ fun KumulusComponent.isSpout() : Boolean {
 
 abstract class KumulusMessage(val type: Type, val component: KumulusComponent) {
     enum class Type {
-        PREPARE, EXECUTE
+        PREPARE, EXECUTE, ACK
     }
 }
 
@@ -53,3 +53,5 @@ class BoltPrepareMessage(component: KumulusComponent, collector: KumulusBoltColl
         PrepareMessage<KumulusBolt>(component, collector)
 
 class ExecuteMessage(component: KumulusComponent, val tuple: KumulusTuple) : KumulusMessage(Type.EXECUTE, component)
+
+class AckMessage(spout: KumulusSpout, val spoutMessageId: Any, val ack: Boolean) : KumulusMessage(Type.ACK, spout)

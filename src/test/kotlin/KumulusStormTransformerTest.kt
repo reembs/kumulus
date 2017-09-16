@@ -60,6 +60,16 @@ internal class KumulusStormTransformerTest {
             override fun declareOutputFields(declarer: OutputFieldsDeclarer?) {
                 declarer?.declare(Fields("index", "nano-time"))
             }
+
+            override fun fail(msgId: Any?) {
+                logger.info { "Got fail for $msgId" }
+                super.fail(msgId)
+            }
+
+            override fun ack(msgId: Any?) {
+                logger.info { "Got ack for $msgId" }
+                super.ack(msgId)
+            }
         }
 
         val bolt = object : BaseBasicBolt() {
@@ -91,8 +101,7 @@ internal class KumulusStormTransformerTest {
                                     "${context.thisComponentId}/${context.thisTaskId}:\n").also { sb ->
                                 LOG_PERCENTILES.forEach { percentile ->
                                     val duration = histogram.getValueAtPercentile(percentile)
-                                    val countUnder = histogram.totalCount -
-                                            histogram.getCountBetweenValues(0, duration)
+                                    val countUnder = histogram.getCountBetweenValues(0, duration)
                                     sb.append("$percentile ($countUnder): ${toMillis(duration)}\n")
                                 }
                             }
