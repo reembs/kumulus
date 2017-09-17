@@ -1,10 +1,12 @@
 import mu.KotlinLogging
 import org.HdrHistogram.Histogram
 import org.apache.storm.Config
-import org.apache.storm.LocalCluster
 import org.apache.storm.spout.SpoutOutputCollector
+import org.apache.storm.task.OutputCollector
 import org.apache.storm.task.TopologyContext
 import org.apache.storm.topology.BasicOutputCollector
+import org.apache.storm.topology.FailedException
+import org.apache.storm.topology.IRichBolt
 import org.apache.storm.topology.OutputFieldsDeclarer
 import org.apache.storm.topology.base.BaseBasicBolt
 import org.apache.storm.topology.base.BaseRichSpout
@@ -25,7 +27,7 @@ internal class KumulusStormTransformerTest {
         @JvmStatic
         val finish = CountDownLatch(1)
         var start = AtomicLong(0)
-        val TOTAL_ITERATIONS = 1000
+        val TOTAL_ITERATIONS = 100000
         val SINK_BOLT_NAME = "bolt4"
     }
 
@@ -59,6 +61,9 @@ internal class KumulusStormTransformerTest {
 
             override fun fail(msgId: Any?) {
                 logger.trace { "Got fail for $msgId" }
+
+                logMsg(msgId!!)
+
                 super.fail(msgId)
             }
 
@@ -69,52 +74,38 @@ internal class KumulusStormTransformerTest {
                     finish.countDown()
                 }
 
+                logMsg(msgId)
+
                 super.ack(msgId)
+            }
+
+            private val seen = HashSet<Any>()
+
+            fun logMsg(msgId: Any) {
+                assert(seen.add(msgId)) { "MessageId $msgId was acked twice" }
             }
         }
 
-        val bolt = object : BaseBasicBolt() {
-            lateinit var context: TopologyContext
-            lateinit var histogram: Histogram
-            var count = 0
+        val bolt = TestBasicBolt()
 
-            override fun prepare(stormConf: MutableMap<Any?, Any?>?, context: TopologyContext?) {
-                this.context = context!!
-                histogram = Histogram(4)
-                super.prepare(stormConf, context)
+        val failingBolt = TestBasicBolt(failing = true)
+
+        val unanchoringBolt = object : IRichBolt {
+            lateinit var collector: OutputCollector
+
+            override fun prepare(stormConf: MutableMap<Any?, Any?>?, context: TopologyContext?, collector: OutputCollector?) {
+                this.collector = collector!!
             }
 
-            override fun execute(input: Tuple?, collector: BasicOutputCollector?) {
-                val index: Int = input?.getValueByField("index") as Int
-                val tookNanos = System.nanoTime() - input.getValueByField("nano-time") as Long
-
-                logger.debug { "[${context.thisComponentId}/${context.thisTaskId}] " +
-                        "Index: $index, took: ${tookNanos / 1000.0 / 1000.0}ms" }
-
-                count++
-
-                if (context.thisComponentId == SINK_BOLT_NAME) {
-                    histogram.recordValue(tookNanos / 1000)
-
-                    if (index % (TOTAL_ITERATIONS / 10) == 0) {
-                        logger.info {
-                            StringBuilder("[index: $index] Latency histogram values for " +
-                                    "${context.thisComponentId}/${context.thisTaskId}:\n").also { sb ->
-                                LOG_PERCENTILES.forEach { percentile ->
-                                    val duration = histogram.getValueAtPercentile(percentile)
-                                    val countUnder = histogram.getCountBetweenValues(0, duration)
-                                    sb.append("$percentile ($countUnder): ${toMillis(duration)}\n")
-                                }
-                            }
-                        }
-                    }
-                }
-
-                collector?.emit(input.values)
+            override fun execute(input: Tuple?) {
+                collector.emit(input!!.values)
+                collector.ack(input)
             }
 
-            fun toMillis(i: Long) : Double {
-                return i / 1000.0
+            override fun cleanup() {}
+
+            override fun getComponentConfiguration(): MutableMap<String, Any> {
+                return mutableMapOf()
             }
 
             override fun declareOutputFields(declarer: OutputFieldsDeclarer?) {
@@ -122,11 +113,21 @@ internal class KumulusStormTransformerTest {
             }
         }
 
-        builder.setSpout("spout", spout, 1)
-        builder.setBolt("bolt", bolt).shuffleGrouping("spout")
-        builder.setBolt("bolt2", bolt).shuffleGrouping("bolt")
-        builder.setBolt("bolt3", bolt).shuffleGrouping("bolt2")
-        builder.setBolt(SINK_BOLT_NAME, bolt).shuffleGrouping("bolt3")
+        val parallelism = 1
+        builder.setSpout("spout", spout)
+        builder.setBolt("bolt", bolt, parallelism)
+                .shuffleGrouping("spout")
+        builder.setBolt("bolt2", bolt, parallelism)
+                .shuffleGrouping("bolt")
+        builder.setBolt("bolt3", bolt, parallelism)
+                .shuffleGrouping("bolt2")
+        builder.setBolt(SINK_BOLT_NAME, bolt, parallelism)
+                .shuffleGrouping("bolt3")
+
+//        builder.setBolt("unanchoring_bolt", unanchoringBolt, parallelism)
+//                .shuffleGrouping("bolt2")
+//        builder.setBolt("failing_bolt", failingBolt, parallelism)
+//                .shuffleGrouping("unanchoring_bolt")
 
         val topology = builder.createTopology()!!
 
@@ -136,7 +137,7 @@ internal class KumulusStormTransformerTest {
         config.set(Config.TOPOLOGY_DISRUPTOR_WAIT_TIMEOUT_MILLIS, 0)
         config.set(Config.TOPOLOGY_DISRUPTOR_BATCH_TIMEOUT_MILLIS, 1)
         config.set(Config.STORM_CLUSTER_MODE, "local")
-        config.set(Config.TOPOLOGY_MAX_SPOUT_PENDING, 1)
+        config.set(Config.TOPOLOGY_MAX_SPOUT_PENDING, parallelism)
 
         val kumulusTopology =
                 KumulusStormTransformer.initializeTopology(builder, topology, config, stormId)
@@ -150,5 +151,58 @@ internal class KumulusStormTransformerTest {
 //        finish.await()
 
         println("Done, took: ${System.currentTimeMillis() - start.get()}")
+    }
+
+    class TestBasicBolt(private val failing: Boolean = false) : BaseBasicBolt() {
+        lateinit var context: TopologyContext
+        lateinit var histogram: Histogram
+        var count = 0
+
+        override fun prepare(stormConf: MutableMap<Any?, Any?>?, context: TopologyContext?) {
+            this.context = context!!
+            histogram = Histogram(4)
+            super.prepare(stormConf, context)
+        }
+
+        override fun execute(input: Tuple?, collector: BasicOutputCollector?) {
+            val index: Int = input?.getValueByField("index") as Int
+            val tookNanos = System.nanoTime() - input.getValueByField("nano-time") as Long
+
+            logger.debug { "[${context.thisComponentId}/${context.thisTaskId}] " +
+                    "Index: $index, took: ${tookNanos / 1000.0 / 1000.0}ms" }
+
+            count++
+
+            if (context.thisComponentId == SINK_BOLT_NAME) {
+                histogram.recordValue(tookNanos / 1000)
+
+                if (index % (TOTAL_ITERATIONS / 10) == 0) {
+                    logger.info {
+                        StringBuilder("[index: $index] Latency histogram values for " +
+                                "${context.thisComponentId}/${context.thisTaskId}:\n").also { sb ->
+                            LOG_PERCENTILES.forEach { percentile ->
+                                val duration = histogram.getValueAtPercentile(percentile)
+                                val countUnder = histogram.getCountBetweenValues(0, duration)
+                                sb.append("$percentile ($countUnder): ${toMillis(duration)}\n")
+                            }
+                        }
+                    }
+                }
+            }
+
+            collector?.emit(input.values)
+
+            if (failing) {
+                throw FailedException()
+            }
+        }
+
+        private fun toMillis(i: Long) : Double {
+            return i / 1000.0
+        }
+
+        override fun declareOutputFields(declarer: OutputFieldsDeclarer?) {
+            declarer?.declare(Fields("index", "nano-time"))
+        }
     }
 }

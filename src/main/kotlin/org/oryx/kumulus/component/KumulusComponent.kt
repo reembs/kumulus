@@ -26,6 +26,10 @@ abstract class KumulusComponent(
     fun prepare() {
         isReady.set(true)
     }
+
+    override fun toString(): String {
+        return "[Component ${context.thisComponentId}->${context.thisTaskId}]"
+    }
 }
 
 fun KumulusComponent.isSpout() : Boolean {

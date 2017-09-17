@@ -1,5 +1,6 @@
 package org.oryx.kumulus.collector
 
+import mu.KotlinLogging
 import org.apache.storm.generated.GlobalStreamId
 import org.apache.storm.generated.Grouping
 import org.apache.storm.tuple.Tuple
@@ -18,6 +19,10 @@ abstract class KumulusCollector<T: KumulusComponent>(
         private val emitter: KumulusEmitter,
         protected val acker : KumulusAcker
 ) {
+    companion object {
+        private val logger = KotlinLogging.logger {}
+    }
+
     private fun emit(
             streamId: String?,
             tuple: MutableList<Any>,
@@ -27,10 +32,10 @@ abstract class KumulusCollector<T: KumulusComponent>(
         val outputPairs = componentRegisteredOutputs.filter { it.first == streamId }
 
         val ret = mutableListOf<Int>()
-        outputPairs.forEach {
-            val dest = GlobalStreamId(it.second.first, streamId)
+        outputPairs.forEach { (_, streamToGrouping) ->
+            val dest = GlobalStreamId(streamToGrouping.first, streamId)
 
-            val emitToInstance= emitter.getDestinations(component, dest, it.second.second, tuple, anchors)
+            val emitToInstance= emitter.getDestinations(component, dest, streamToGrouping.second, tuple, anchors)
 
             // First, expand all trees
             val executes = emitToInstance.map { destComponent ->
@@ -41,9 +46,11 @@ abstract class KumulusCollector<T: KumulusComponent>(
 
             /* Only after expending can we execute next bolts to prevent race that
                would cause premature acking with the spout */
-            executes.forEach {
-                emitter.execute(it.first, it.second)
+            executes.forEach { (component, tuple) ->
+                emitter.execute(component, tuple)
             }
+
+            logger.trace { "Finished emitting from bolt $component" }
 
             ret += emitToInstance.map {
                 it.taskId()
@@ -54,11 +61,11 @@ abstract class KumulusCollector<T: KumulusComponent>(
     }
 
     fun emit(streamId: String?, anchors: MutableCollection<Tuple>?, tuple: MutableList<Any>): MutableList<Int> {
-        val messageId= anchors!!.map {
+        val messageId= anchors?.map {
             (it as TupleImpl).spoutMessageId
-        }.toSet().apply {
+        }?.toSet()?.apply {
             assert(this.size <= 1) { "Found more than a single message ID in emitted anchors: $anchors" }
-        }.first()
+        }?.first()
         return emit(streamId, tuple, messageId!!, anchors)
     }
 
