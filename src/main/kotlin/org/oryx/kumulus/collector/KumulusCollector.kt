@@ -26,7 +26,7 @@ abstract class KumulusCollector<T: KumulusComponent>(
     private fun emit(
             streamId: String?,
             tuple: MutableList<Any>,
-            messageId: Any,
+            messageId: Any?,
             anchors: Collection<Tuple>?
     ) : MutableList<Int> {
         val outputPairs = componentRegisteredOutputs.filter { it.first == streamId }
@@ -66,7 +66,7 @@ abstract class KumulusCollector<T: KumulusComponent>(
         }?.toSet()?.apply {
             assert(this.size <= 1) { "Found more than a single message ID in emitted anchors: $anchors" }
         }?.first()
-        return emit(streamId, tuple, messageId!!, anchors)
+        return emit(streamId, tuple, messageId, anchors)
     }
 
     fun emit(streamId: String?, tuple: MutableList<Any>, messageId: Any?): MutableList<Int> {

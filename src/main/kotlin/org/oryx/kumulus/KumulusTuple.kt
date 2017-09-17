@@ -10,7 +10,7 @@ class KumulusTuple(
         streamId: String,
         tuple: List<Any>,
         anchors: Collection<Tuple>?,
-        messageId: Any
+        messageId: Any?
 ) {
     val kTuple: Tuple = TupleImpl(component.context, tuple, component.taskId(), streamId, KumulusMessageId(anchors), messageId)
 }

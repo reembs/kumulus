@@ -165,7 +165,7 @@ class KumulusTopology(
     }
 
     // KumulusEmitter impl
-    override fun completeMessageProcessing(spout: KumulusSpout, spoutMessageId: Any, ack: Boolean) {
+    override fun completeMessageProcessing(spout: KumulusSpout, spoutMessageId: Any?, ack: Boolean) {
         spout.queue.add(AckMessage(spout, spoutMessageId, ack))
     }
 }

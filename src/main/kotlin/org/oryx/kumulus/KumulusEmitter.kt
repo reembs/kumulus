@@ -16,5 +16,5 @@ interface KumulusEmitter {
     ): List<KumulusComponent>
 
     fun execute(destComponent: KumulusComponent, kumulusTuple: KumulusTuple)
-    fun completeMessageProcessing(spout: KumulusSpout, spoutMessageId: Any, ack: Boolean)
+    fun completeMessageProcessing(spout: KumulusSpout, spoutMessageId: Any?, ack: Boolean)
 }

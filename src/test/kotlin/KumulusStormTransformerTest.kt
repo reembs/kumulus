@@ -60,9 +60,11 @@ internal class KumulusStormTransformerTest {
             }
 
             override fun fail(msgId: Any?) {
-                logger.trace { "Got fail for $msgId" }
+                logger.error { "Got fail for $msgId" }
 
-                logMsg(msgId!!)
+                if (msgId != null) {
+                    logMsg(msgId)
+                }
 
                 super.fail(msgId)
             }
@@ -70,11 +72,12 @@ internal class KumulusStormTransformerTest {
             override fun ack(msgId: Any?) {
                 logger.trace { "Got ack for $msgId" }
 
-                if (msgId as Int == TOTAL_ITERATIONS) {
-                    finish.countDown()
+                if (msgId != null) {
+                    if (msgId as Int == TOTAL_ITERATIONS) {
+                        finish.countDown()
+                    }
+                    logMsg(msgId)
                 }
-
-                logMsg(msgId)
 
                 super.ack(msgId)
             }
@@ -124,10 +127,10 @@ internal class KumulusStormTransformerTest {
         builder.setBolt(SINK_BOLT_NAME, bolt, parallelism)
                 .shuffleGrouping("bolt3")
 
-//        builder.setBolt("unanchoring_bolt", unanchoringBolt, parallelism)
-//                .shuffleGrouping("bolt2")
-//        builder.setBolt("failing_bolt", failingBolt, parallelism)
-//                .shuffleGrouping("unanchoring_bolt")
+        builder.setBolt("unanchoring_bolt", unanchoringBolt, parallelism)
+                .shuffleGrouping("bolt2")
+        builder.setBolt("failing_bolt", failingBolt, parallelism)
+                .shuffleGrouping("unanchoring_bolt")
 
         val topology = builder.createTopology()!!
 
