@@ -1,16 +1,17 @@
 package org.oryx.kumulus
 
 import clojure.lang.Atom
+import org.apache.storm.Config
+import org.apache.storm.Constants
 import org.apache.storm.generated.ComponentCommon
 import org.apache.storm.generated.GlobalStreamId
 import org.apache.storm.generated.StormTopology
 import org.apache.storm.metric.api.IMetric
 import org.apache.storm.task.TopologyContext
-import org.apache.storm.topology.IComponent
-import org.apache.storm.topology.IRichBolt
-import org.apache.storm.topology.IRichSpout
-import org.apache.storm.topology.TopologyBuilder
+import org.apache.storm.topology.*
+import org.apache.storm.topology.base.BaseBasicBolt
 import org.apache.storm.tuple.Fields
+import org.apache.storm.tuple.Tuple
 import org.apache.storm.utils.Utils
 import org.oryx.kumulus.component.KumulusBolt
 import org.oryx.kumulus.component.KumulusComponent
@@ -34,6 +35,10 @@ class KumulusStormTransformer {
 
             val componentToSortedTasks = mutableMapOf<String, List<Int>>()
             val componentToStreamToFields = mutableMapOf<String, Map<String, Fields>>()
+
+            componentToSortedTasks[Constants.SYSTEM_COMPONENT_ID] = listOf(Constants.SYSTEM_TASK_ID.toInt())
+            componentToStreamToFields[Constants.SYSTEM_COMPONENT_ID] =
+                    mapOf(Pair(Constants.SYSTEM_TICK_STREAM_ID, Fields()))
 
             val codeDir = "/tmp"
             val pidDir = "/tmp"
@@ -105,8 +110,17 @@ class KumulusStormTransformer {
                 }
 
                 taskIds.forEach({ taskId ->
-                    val componentInstance = Utils.javaDeserialize<Serializable>(
-                            componentObjectSerialized?._serialized_java, Serializable::class.java)
+                    val componentInstance =
+                            if (taskId == Constants.SYSTEM_TASK_ID.toInt()) {
+                                BasicBoltExecutor(object : BaseBasicBolt() {
+                                    override fun execute(input: Tuple?, collector: BasicOutputCollector?) {}
+                                    override fun declareOutputFields(declarer: OutputFieldsDeclarer?) {
+                                        declarer?.declareStream(Constants.SYSTEM_TICK_STREAM_ID, Fields())
+                                    }
+                                })
+                            } else {
+                                Utils.javaDeserialize<Serializable>(componentObjectSerialized?._serialized_java, Serializable::class.java)
+                            }
 
                     val context = TopologyContext(
                             topology,
@@ -127,7 +141,15 @@ class KumulusStormTransformer {
                             Atom(Object()))
 
                     kComponents += when (componentInstance) {
-                        is IRichBolt -> KumulusBolt(config, context, componentInstance)
+                        is IRichBolt ->
+                            KumulusBolt(config, context, componentInstance).apply {
+                                (componentInstance.componentConfiguration ?: mapOf())[Config.TOPOLOGY_TICK_TUPLE_FREQ_SECS]?.let { secs ->
+                                    assert(secs is Number)
+                                    (secs as Number).let {
+                                        this.tickSecs = secs
+                                    }
+                                }
+                            }
                         is IRichSpout -> KumulusSpout(config, context, componentInstance)
                         else ->
                             throw Throwable("Component of type ${componentInstance::class.qualifiedName} is not acceptable by Kumulus")

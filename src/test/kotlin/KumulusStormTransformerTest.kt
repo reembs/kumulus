@@ -1,6 +1,8 @@
 import mu.KotlinLogging
 import org.HdrHistogram.Histogram
 import org.apache.storm.Config
+import org.apache.storm.Config.TOPOLOGY_TICK_TUPLE_FREQ_SECS
+import org.apache.storm.Constants
 import org.apache.storm.spout.SpoutOutputCollector
 import org.apache.storm.task.OutputCollector
 import org.apache.storm.task.TopologyContext
@@ -101,14 +103,21 @@ internal class KumulusStormTransformerTest {
             }
 
             override fun execute(input: Tuple?) {
-                collector.emit(input!!.values)
-                collector.ack(input)
+                try {
+                    if (input!!.sourceStreamId == Constants.SYSTEM_TICK_STREAM_ID) {
+                        logger.info { "Got tick tuple" }
+                        return
+                    }
+                    collector.emit(input.values)
+                } finally {
+                    collector.ack(input)
+                }
             }
 
             override fun cleanup() {}
 
             override fun getComponentConfiguration(): MutableMap<String, Any> {
-                return mutableMapOf()
+                return mutableMapOf(Pair(TOPOLOGY_TICK_TUPLE_FREQ_SECS, 1))
             }
 
             override fun declareOutputFields(declarer: OutputFieldsDeclarer?) {

@@ -16,6 +16,8 @@ class KumulusBolt(
         private val logger = KotlinLogging.logger {}
     }
 
+    var tickSecs: Number? = null
+
     private val bolt : IRichBolt = componentInstance
 
     fun prepare(collector: KumulusBoltCollector) {

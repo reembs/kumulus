@@ -1,6 +1,7 @@
 package org.oryx.kumulus
 
 import mu.KotlinLogging
+import org.apache.storm.Constants
 import org.apache.storm.generated.GlobalStreamId
 import org.apache.storm.generated.Grouping
 import org.apache.storm.tuple.Fields
@@ -10,6 +11,7 @@ import org.oryx.kumulus.collector.KumulusSpoutCollector
 import org.oryx.kumulus.component.*
 import java.util.*
 import java.util.concurrent.*
+import java.util.concurrent.atomic.AtomicBoolean
 
 class KumulusTopology(
         private val components: List<KumulusComponent>,
@@ -23,6 +25,12 @@ class KumulusTopology(
     private val random = Random()
     private val mainQueue = LinkedBlockingDeque<KumulusMessage>()
     private val acker: KumulusAcker
+    private val rejectedExecutionHandler = RejectedExecutionHandler { _, _ ->
+        logger.error { "Execution was rejected" }
+    }
+    private val tickExecutor = ScheduledThreadPoolExecutor(1, rejectedExecutionHandler)
+    private val started = AtomicBoolean(false)
+    private val systemComponent = components.first { it.taskId() == Constants.SYSTEM_TASK_ID.toInt() }
 
     init {
         boltExecutionPool = ThreadPoolExecutor(4, 10, 20, TimeUnit.SECONDS, queue)
@@ -46,13 +54,34 @@ class KumulusTopology(
                 is KumulusSpout ->
                     SpoutPrepareMessage(
                             component, KumulusSpoutCollector(component, componentRegisteredOutputs, this, acker))
-                is KumulusBolt ->
+                is KumulusBolt -> {
                     BoltPrepareMessage(
                             component, KumulusBoltCollector(component, componentRegisteredOutputs, this, acker))
-
+                }
                 else ->
                     throw UnsupportedOperationException()
             })
+
+            if (component is KumulusBolt) {
+                component.tickSecs?.toLong()?.let { tickSecs ->
+                    tickExecutor.scheduleWithFixedDelay({
+                        if (started.get()) {
+                            try {
+                                val tuple = KumulusTuple(
+                                        systemComponent,
+                                        Constants.SYSTEM_TICK_STREAM_ID,
+                                        listOf(),
+                                        null,
+                                        null
+                                )
+                                mainQueue.add(ExecuteMessage(component, tuple))
+                            } catch (e: Exception) {
+                                logger.error(e) { "Error in sending tick tuple" }
+                            }
+                        }
+                    }, tickSecs, tickSecs, TimeUnit.SECONDS)
+                }
+            }
         }
 
         startQueuePolling()
@@ -113,6 +142,7 @@ class KumulusTopology(
                 this.start()
             }
         }
+        started.set(true)
     }
 
     fun stop() {
