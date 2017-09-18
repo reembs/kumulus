@@ -3,6 +3,7 @@ import org.HdrHistogram.Histogram
 import org.apache.storm.Config
 import org.apache.storm.Config.TOPOLOGY_TICK_TUPLE_FREQ_SECS
 import org.apache.storm.Constants
+import org.apache.storm.LocalCluster
 import org.apache.storm.spout.SpoutOutputCollector
 import org.apache.storm.task.OutputCollector
 import org.apache.storm.task.TopologyContext
@@ -29,7 +30,7 @@ internal class KumulusStormTransformerTest {
         @JvmStatic
         val finish = CountDownLatch(1)
         var start = AtomicLong(0)
-        val TOTAL_ITERATIONS = 1000000
+        val TOTAL_ITERATIONS = 10000
         val SINK_BOLT_NAME = "bolt4"
     }
 
@@ -37,7 +38,7 @@ internal class KumulusStormTransformerTest {
     fun test1() {
         val builder = org.apache.storm.topology.TopologyBuilder()
 
-        val config = Utils.readStormConfig()
+        val config: MutableMap<String, Any> = mutableMapOf()
 
         val spout = object : BaseRichSpout() {
             var collector: SpoutOutputCollector? = null
@@ -144,8 +145,6 @@ internal class KumulusStormTransformerTest {
 
         val topology = builder.createTopology()!!
 
-        val stormId = "testtopology"
-
         config.set(Config.TOPOLOGY_DISRUPTOR_BATCH_SIZE, 1)
         config.set(Config.TOPOLOGY_DISRUPTOR_WAIT_TIMEOUT_MILLIS, 0)
         config.set(Config.TOPOLOGY_DISRUPTOR_BATCH_TIMEOUT_MILLIS, 1)
@@ -153,17 +152,17 @@ internal class KumulusStormTransformerTest {
         config.set(Config.TOPOLOGY_MAX_SPOUT_PENDING, maxPending)
 
         val kumulusTopology =
-                KumulusStormTransformer.initializeTopology(builder, topology, config, stormId)
+                KumulusStormTransformer.initializeTopology(builder, topology, config, "testtopology")
         kumulusTopology.prepare()
         kumulusTopology.start()
         finish.await()
         kumulusTopology.stop()
 
 //        val cluster = LocalCluster()
-//        cluster.submitTopology(stormId, config, topology)
+//        cluster.submitTopology("testtopology", config, topology)
 //        finish.await()
 
-        println("Done, took: ${System.currentTimeMillis() - start.get()}")
+        println("Done, took: ${System.currentTimeMillis() - start.get()}ms")
     }
 
     class TestBasicBolt(private val failing: Boolean = false) : BaseBasicBolt() {
@@ -196,7 +195,7 @@ internal class KumulusStormTransformerTest {
                             LOG_PERCENTILES.forEach { percentile ->
                                 val duration = histogram.getValueAtPercentile(percentile)
                                 val countUnder = histogram.getCountBetweenValues(0, duration)
-                                sb.append("$percentile ($countUnder): ${toMillis(duration)}\n")
+                                sb.append("$percentile ($countUnder): ${toMillis(duration)}ms\n")
                             }
                         }
                     }
