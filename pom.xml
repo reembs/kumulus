@@ -9,6 +9,18 @@
     <artifactId>kumulus</artifactId>
     <version>0.1-SNAPSHOT</version>
 
+    <licenses>
+        <license>
+            <name>Apache License, Version 2.0</name>
+            <url>http://www.apache.org/licenses/LICENSE-2.0.txt</url>
+            <distribution>repo</distribution>
+        </license>
+    </licenses>
+
+    <scm>
+        <url>https://github.com/reembs/kumulus</url>
+    </scm>
+
     <properties>
         <kotlin.version>1.1.4-3</kotlin.version>
         <storm.version>1.0.4</storm.version>
@@ -164,5 +176,26 @@
                 </executions>
             </plugin>
         </plugins>
+
+        <extensions>
+            <extension>
+                <groupId>org.springframework.build</groupId>
+                <artifactId>aws-maven</artifactId>
+                <version>5.0.0.RELEASE</version>
+            </extension>
+        </extensions>
     </build>
+
+    <distributionManagement>
+        <repository>
+            <id>maven-s3-release-repo</id>
+            <name>AWS Release Repository</name>
+            <url>s3://xyr.io/releases</url>
+        </repository>
+        <snapshotRepository>
+            <id>maven-s3-snapshot-repo</id>
+            <name>AWS Snapshot Repository</name>
+            <url>s3://xyr.io/snapshots</url>
+        </snapshotRepository>
+    </distributionManagement>
 </project>
