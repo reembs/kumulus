@@ -29,7 +29,7 @@ internal class KumulusStormTransformerTest {
         @JvmStatic
         val finish = CountDownLatch(1)
         var start = AtomicLong(0)
-        val TOTAL_ITERATIONS = 100000
+        val TOTAL_ITERATIONS = 1000000
         val SINK_BOLT_NAME = "bolt4"
     }
 
@@ -126,6 +126,7 @@ internal class KumulusStormTransformerTest {
         }
 
         val parallelism = 1
+        val maxPending = 1
         builder.setSpout("spout", spout)
         builder.setBolt("bolt", bolt, parallelism)
                 .shuffleGrouping("spout")
@@ -149,7 +150,7 @@ internal class KumulusStormTransformerTest {
         config.set(Config.TOPOLOGY_DISRUPTOR_WAIT_TIMEOUT_MILLIS, 0)
         config.set(Config.TOPOLOGY_DISRUPTOR_BATCH_TIMEOUT_MILLIS, 1)
         config.set(Config.STORM_CLUSTER_MODE, "local")
-        config.set(Config.TOPOLOGY_MAX_SPOUT_PENDING, parallelism)
+        config.set(Config.TOPOLOGY_MAX_SPOUT_PENDING, maxPending)
 
         val kumulusTopology =
                 KumulusStormTransformer.initializeTopology(builder, topology, config, stormId)
@@ -188,7 +189,7 @@ internal class KumulusStormTransformerTest {
             if (context.thisComponentId == SINK_BOLT_NAME) {
                 histogram.recordValue(tookNanos / 1000)
 
-                if (index % (TOTAL_ITERATIONS / 10) == 0) {
+                if (index == TOTAL_ITERATIONS) {
                     logger.info {
                         StringBuilder("[index: $index] Latency histogram values for " +
                                 "${context.thisComponentId}/${context.thisTaskId}:\n").also { sb ->
