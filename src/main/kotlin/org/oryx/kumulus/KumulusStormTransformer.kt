@@ -23,11 +23,11 @@ class KumulusStormTransformer {
     companion object {
         @Suppress("UNCHECKED_CAST")
         fun initializeTopology(builder: TopologyBuilder, topology: StormTopology?, config: MutableMap<String, Any>, stormId: String) : KumulusTopology {
-            val boltField = builder.javaClass.getDeclaredField("_bolts")
+            val boltField = TopologyBuilder::class.java.getDeclaredField("_bolts")
             boltField.isAccessible = true
             val boltsMap : Map<String, IComponent> = boltField.get(builder) as Map<String, IRichBolt>
 
-            val spoutField = builder.javaClass.getDeclaredField("_spouts")
+            val spoutField = TopologyBuilder::class.java.getDeclaredField("_spouts")
             spoutField.isAccessible = true
             val spoutsMap : Map<String, IComponent> = spoutField.get(builder) as Map<String, IRichSpout>
 
