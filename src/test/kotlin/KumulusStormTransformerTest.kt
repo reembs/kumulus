@@ -30,7 +30,7 @@ internal class KumulusStormTransformerTest {
         @JvmStatic
         val finish = CountDownLatch(1)
         var start = AtomicLong(0)
-        val TOTAL_ITERATIONS = 10000
+        val TOTAL_ITERATIONS = 100000
         val SINK_BOLT_NAME = "bolt4"
     }
 
@@ -185,7 +185,7 @@ internal class KumulusStormTransformerTest {
 
             count++
 
-            if (context.thisComponentId == SINK_BOLT_NAME) {
+            if (context.thisComponentId == SINK_BOLT_NAME && index > TOTAL_ITERATIONS / 10) {
                 histogram.recordValue(tookNanos / 1000)
 
                 if (index == TOTAL_ITERATIONS) {

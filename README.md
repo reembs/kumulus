@@ -16,38 +16,38 @@ kumulusTopology.prepare()
 kumulusTopology.start()
 ```
 
-Latency histograms produced by passing 10,000 tiny tuples into the fairly simple topology defined in KumulusStormTransformerTest:
+Latency histograms produced by passing 100,000 (10% warm-up) tiny tuples into the fairly simple topology defined in KumulusStormTransformerTest:
 
 *Storm 1.0.4*
 ```
-5.0 (514): 0.117ms
-25.0 (2558): 0.148ms
-50.0 (5052): 0.177ms
-75.0 (7514): 0.217ms
-90.0 (9014): 0.264ms
-95.0 (9504): 0.333ms
-98.0 (9800): 0.476ms
-99.0 (9900): 0.585ms
-99.9 (9990): 1.141ms
-99.99 (9999): 5.397ms
+5.0 (4596): 0.116ms
+25.0 (22748): 0.149ms
+50.0 (45049): 0.179ms
+75.0 (67824): 0.226ms
+90.0 (81012): 0.275ms
+95.0 (85507): 0.353ms
+98.0 (88205): 0.486ms
+99.0 (89103): 0.561ms
+99.9 (89910): 0.819ms
+99.99 (89991): 4.726ms
 
-took: 13162ms
+Done, took: 131152ms
 ```
 
 *Kumulus*
 ```
-5.0 (1227): 0.044ms
-25.0 (2837): 0.046ms
-50.0 (5050): 0.062ms
-75.0 (7590): 0.089ms
-90.0 (9042): 0.123ms
-95.0 (9517): 0.141ms
-98.0 (9801): 0.175ms
-99.0 (9900): 0.214ms
-99.9 (9990): 0.427ms
-99.99 (9999): 4.448ms
+5.0 (6646): 0.041ms
+25.0 (33924): 0.042ms
+50.0 (58594): 0.043ms
+75.0 (70535): 0.045ms
+90.0 (81255): 0.056ms
+95.0 (85719): 0.073ms
+98.0 (88224): 0.088ms
+99.0 (89112): 0.11ms
+99.9 (89911): 0.168ms
+99.99 (89991): 1.55ms
 
-took: 904ms
+Done, took: 5949ms
 ```
 
 Startup time was not included in the test results. Naturally, Storm's startup times are significantly higher.
