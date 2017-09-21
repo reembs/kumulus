@@ -1,11 +1,17 @@
 package org.oryx.kumulus.component
 
+import org.apache.storm.generated.GlobalStreamId
+import org.apache.storm.grouping.CustomStreamGrouping
+import org.apache.storm.grouping.ShuffleGrouping
 import org.apache.storm.task.TopologyContext
+import org.apache.storm.utils.Utils
 import org.oryx.kumulus.KumulusTuple
 import org.oryx.kumulus.collector.KumulusBoltCollector
 import org.oryx.kumulus.collector.KumulusCollector
 import org.oryx.kumulus.collector.KumulusSpoutCollector
-import java.util.concurrent.CountDownLatch
+import org.oryx.kumulus.grouping.AllGrouping
+import org.oryx.kumulus.grouping.FieldsGrouping
+import java.io.Serializable
 import java.util.concurrent.atomic.AtomicBoolean
 
 abstract class KumulusComponent(
@@ -14,6 +20,8 @@ abstract class KumulusComponent(
 ) {
     val inUse = AtomicBoolean(false)
     val isReady = AtomicBoolean(false)
+
+    lateinit var groupingStateMap: Map<String, Map<String, CustomStreamGrouping>>
 
     fun name(): String {
         return context.thisComponentId
@@ -24,6 +32,28 @@ abstract class KumulusComponent(
     }
 
     fun prepare() {
+        val groupingStateMap: MutableMap<String, MutableMap<String, CustomStreamGrouping>> = mutableMapOf()
+        context.thisTargets.forEach { stream, groupings ->
+            groupings.forEach { component, grouping ->
+                val kGrouping = if (grouping.is_set_all) {
+                    AllGrouping()
+                } else if (grouping.is_set_none || grouping.is_set_shuffle || grouping.is_set_local_or_shuffle) {
+                    ShuffleGrouping()
+                } else if (grouping.is_set_fields) {
+                    FieldsGrouping(grouping._fields, context.thisOutputFieldsForStreams[stream]!!)
+                } else if  (grouping.is_set_custom_serialized) {
+                    val customGrouping = Utils.javaDeserialize(grouping._custom_serialized, Serializable::class.java)!!
+                    customGrouping as CustomStreamGrouping
+                } else {
+                    throw UnsupportedOperationException("Grouping type $grouping isn't currently supported by Kumulus")
+                }
+                kGrouping.prepare(this.context, GlobalStreamId(component, stream), context.getComponentTasks(component))
+                groupingStateMap[stream] = (groupingStateMap[stream] ?: mutableMapOf()).also {
+                    it[component] = kGrouping
+                }
+            }
+        }
+        this.groupingStateMap = groupingStateMap
         isReady.set(true)
     }
 

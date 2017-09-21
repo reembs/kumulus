@@ -21,24 +21,20 @@ class KumulusSpout(
     val queue = LinkedBlockingDeque<AckMessage>()
 
     fun prepare(collector: KumulusSpoutCollector) {
-        logger.info { "Created spout '${context.thisComponentId}' with taskId ${context.thisTaskId} (index: ${context.thisTaskIndex}). Object hashcode: ${this.hashCode()}" }
+        logger.debug { "Created spout '${context.thisComponentId}' with taskId ${context.thisTaskId} (index: ${context.thisTaskIndex}). Object hashcode: ${this.hashCode()}" }
         spout.open(config, context, SpoutOutputCollector(collector))
         super.prepare()
-        inUse.set(false)
     }
 
     fun nextTuple() {
-        try {
-            queue.poll()?.let { ackMsg ->
-                if (ackMsg.ack) {
-                    spout.ack(ackMsg.spoutMessageId)
-                } else {
-                    spout.fail(ackMsg.spoutMessageId)
-                }
-            }
-            spout.nextTuple()
-        } finally {
-            inUse.set(false)
-        }
+        spout.nextTuple()
+    }
+
+    fun ack(msgId: Any?) {
+        spout.ack(msgId)
+    }
+
+    fun fail(msgId: Any?) {
+        spout.fail(msgId)
     }
 }

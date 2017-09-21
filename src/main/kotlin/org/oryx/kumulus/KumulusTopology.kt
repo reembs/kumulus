@@ -94,24 +94,28 @@ class KumulusTopology(
                 val c = message.component
                 if (c.inUse.compareAndSet(false, true)) {
                     boltExecutionPool.execute({
-                        when (message) {
-                            is PrepareMessage<*> -> {
-                                if (c.isSpout())
-                                    (c as KumulusSpout).prepare(message.collector as KumulusSpoutCollector)
-                                else
-                                    (c as KumulusBolt).prepare(message.collector as KumulusBoltCollector)
-                            }
-                            is ExecuteMessage -> {
-                                assert(!c.isSpout()) {
-                                    logger.error {
-                                        "Execute message got to a spout '${c.context.thisComponentId}', " +
-                                                "this shouldn't happen."
-                                    }
+                        try {
+                            when (message) {
+                                is PrepareMessage<*> -> {
+                                    if (c.isSpout())
+                                        (c as KumulusSpout).prepare(message.collector as KumulusSpoutCollector)
+                                    else
+                                        (c as KumulusBolt).prepare(message.collector as KumulusBoltCollector)
                                 }
-                                (c as KumulusBolt).execute(message.tuple)
+                                is ExecuteMessage -> {
+                                    assert(!c.isSpout()) {
+                                        logger.error {
+                                            "Execute message got to a spout '${c.context.thisComponentId}', " +
+                                                    "this shouldn't happen."
+                                        }
+                                    }
+                                    (c as KumulusBolt).execute(message.tuple)
+                                }
+                                else ->
+                                    throw UnsupportedOperationException("Operation of type ${c.javaClass.canonicalName} is unsupported")
                             }
-                            else ->
-                                throw UnsupportedOperationException("Operation of type ${c.javaClass.canonicalName} is unsupported")
+                        } finally {
+                            c.inUse.set(false)
                         }
                     })
                 } else {
@@ -133,8 +137,24 @@ class KumulusTopology(
             Thread {
                 while (true) {
                     if (spout.isReady.get()) {
-                        acker.waitForSpoutAvailability()
-                        spout.nextTuple()
+                        spout.queue.poll()?.also { ackMessage ->
+                            if (ackMessage.ack) {
+                                spout.ack(ackMessage.spoutMessageId)
+                            } else {
+                                spout.fail(ackMessage.spoutMessageId)
+                            }
+                        }.let {
+                            if (it == null) {
+                                acker.waitForSpoutAvailability()
+                                if (spout.inUse.compareAndSet(false, true)) {
+                                    try {
+                                        spout.nextTuple()
+                                    } finally {
+                                        spout.inUse.set(false)
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
             }.apply {
@@ -152,41 +172,8 @@ class KumulusTopology(
     }
 
     // KumulusEmitter impl
-    override fun getDestinations(
-            self: KumulusComponent,
-            dest: GlobalStreamId,
-            grouping: Grouping,
-            tuple: List<Any>,
-            anchors: Collection<Tuple>?
-    ): List<KumulusComponent> {
-        val tasks = this.components.filter { it.name() == dest._componentId }
-        val emitToInstance: List<KumulusComponent>
-
-        emitToInstance =
-                if (grouping.is_set_all) {
-                    tasks
-                } else if (grouping.is_set_none || grouping.is_set_shuffle || grouping.is_set_local_or_shuffle) {
-                    listOf(tasks[Math.abs(random.nextInt() % tasks.size)])
-                } else if (grouping.is_set_fields) {
-                    val groupingFields = grouping._fields
-                    val outputFields
-                            = componentToStreamToFields[self.name()]?.get(dest._streamId)
-
-                    var groupingHashes = 0L
-
-                    groupingFields.forEach { gField ->
-                        outputFields?.let {
-                            val fieldValue = tuple[it.fieldIndex(gField)]
-                            groupingHashes += fieldValue.hashCode()
-                        }
-                    }
-
-                    listOf(tasks[(groupingHashes % tasks.size).toInt()])
-                } else {
-                    throw UnsupportedOperationException("Grouping type $grouping isn't currently supported by Kumulus")
-                }
-
-        return emitToInstance
+    override fun getDestinations(tasks: List<Int>): List<KumulusComponent> {
+        return this.components.filter { tasks.contains(it.taskId()) }
     }
 
     // KumulusEmitter impl

@@ -167,7 +167,7 @@ class TupleImpl : Tuple {
     }
 
     override fun toString(): String {
-        return """source: $sourceComponent:$taskId, stream: $streamId, id: $id, $values"""
+        return """source: $sourceComponent:$taskId, stream: $streamId, id: $id, $values [spoutMessageId: $spoutMessageId]"""
     }
 
     override fun equals(other: Any?): Boolean {

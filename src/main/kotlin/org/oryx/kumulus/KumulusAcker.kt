@@ -32,29 +32,36 @@ class KumulusAcker(
         if (messageId == null) {
             notifySpout(component, messageId, true)
         } else {
-            val messageState = MessageState(component)
-            assert(state[messageId] == null) {
-                "messageId $messageId is currently being processes. Duplicate IDs are not allowed"
+            synchronized(completeLock) {
+                val messageState = MessageState(component)
+                assert(state[messageId] == null) {
+                    "messageId $messageId is currently being processes. Duplicate IDs are not allowed"
+                }
+                state[messageId] = messageState
             }
-            state[messageId] = messageState
             val currentPending = currentPending.incrementAndGet()
             if (maxSpoutPending > 0)
                 assert(currentPending <= maxSpoutPending) { "Exceeding max-spout-pending" }
+
         }
     }
 
     fun expandTrees(component: KumulusComponent, dest: Int, tuple: KumulusTuple) {
         logger.debug { "expandTrees() -> component: $component, dest: $dest, tuple: $tuple" }
         (tuple.kTuple as TupleImpl).spoutMessageId?.let { messageId ->
-            val state = state[messageId]!!
-            state.pendingTasks.add(Pair(dest, tuple.kTuple))
+            val messageState =
+                    state[messageId] ?:
+                            error("State missing for messageId $messageId while emitting from $component to $dest. Tuple: $tuple")
+            messageState.pendingTasks.add(Pair(dest, tuple.kTuple))
         }
     }
 
     fun fail(component: KumulusComponent, input: Tuple?) {
         logger.debug { "fail() -> component: $component, input: $input" }
         (input as TupleImpl).spoutMessageId?.let { messageId ->
-            val messageState = state[messageId]!!
+            val messageState =
+                    state[messageId] ?:
+                            error("State missing for messageId $messageId while failing tuple in $component. Tuple: $input")
             messageState.ack.compareAndSet(true, false)
             checkComplete(messageState, component, input)
         }
@@ -63,7 +70,9 @@ class KumulusAcker(
     fun ack(component: KumulusComponent, input: Tuple?) {
         logger.debug { "ack() -> component: $component, input: $input" }
         (input as TupleImpl).spoutMessageId?.let { messageId ->
-            val messageState = state[messageId]!!
+            val messageState =
+                    state[messageId] ?:
+                            error("State missing for messageId $messageId while acking tuple in $component. Tuple: $input")
             checkComplete(messageState, component, input)
         }
     }
@@ -85,6 +94,18 @@ class KumulusAcker(
             if (synchronized(completeLock) {
                 assert(messageState.pendingTasks.remove(key)) {
                     "Key $key was not found in execution map for $component" }
+                logger.debug { "Pending task from $component for message $spoutMessageId was completed. " +
+                        "Current pending tuples are:" + messageState.pendingTasks.let {
+                    if (it.isEmpty()) {
+                        " Empty\n"
+                    } else {
+                        val sb = StringBuilder("\n")
+                        it.forEach {
+                            sb.append("${it.first}: ${it.second}\n")
+                        }
+                        sb.toString()
+                    }
+                }}
                 messageState.pendingTasks.isEmpty()
             }) {
                 logger.debug { "[${component.context.thisComponentId}/${component.context.thisTaskId}] " +
