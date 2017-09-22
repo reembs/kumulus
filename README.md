@@ -15,7 +15,7 @@ builder.setBolt("bolt", Bolt())
 val kumulusTopology = KumulusStormTransformer.initializeTopology(
         builder, builder.createTopology(), config, "topology_name")
 kumulusTopology.prepare()
-kumulusTopology.start()
+kumulusTopology.start(true)
 ```
 
 Or from Java:
@@ -32,7 +32,7 @@ KumulusTopology kumulusTopology =
         KumulusStormTransformer.initializeTopology(
             builder, builder.createTopology(), config, "topology_name");
 kumulusTopology.prepare();
-kumulusTopology.start();
+kumulusTopology.start(true);
 ```
 
 Latency histograms produced by passing 100,000 (10% warm-up) tiny tuples into the fairly simple topology defined in KumulusStormTransformerTest:

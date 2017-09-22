@@ -12,7 +12,8 @@ import java.util.concurrent.atomic.AtomicLong
 
 class KumulusAcker(
         private val emitter: KumulusEmitter,
-        private val maxSpoutPending: Long
+        private val maxSpoutPending: Long,
+        private val allowExtraAcking: Boolean
 ) {
     companion object {
         private val logger = KotlinLogging.logger {}
@@ -49,6 +50,9 @@ class KumulusAcker(
     fun expandTrees(component: KumulusComponent, dest: Int, tuple: KumulusTuple) {
         logger.debug { "expandTrees() -> component: $component, dest: $dest, tuple: $tuple" }
         (tuple.kTuple as TupleImpl).spoutMessageId?.let { messageId ->
+            if (allowExtraAcking && state[messageId] == null) {
+                return
+            }
             val messageState =
                     state[messageId] ?:
                             error("State missing for messageId $messageId while emitting from $component to $dest. Tuple: $tuple")
@@ -59,6 +63,9 @@ class KumulusAcker(
     fun fail(component: KumulusComponent, input: Tuple?) {
         logger.debug { "fail() -> component: $component, input: $input" }
         (input as TupleImpl).spoutMessageId?.let { messageId ->
+            if (allowExtraAcking && state[messageId] == null) {
+                return
+            }
             val messageState =
                     state[messageId] ?:
                             error("State missing for messageId $messageId while failing tuple in $component. Tuple: $input")
@@ -70,6 +77,9 @@ class KumulusAcker(
     fun ack(component: KumulusComponent, input: Tuple?) {
         logger.debug { "ack() -> component: $component, input: $input" }
         (input as TupleImpl).spoutMessageId?.let { messageId ->
+            if (allowExtraAcking && state[messageId] == null) {
+                return
+            }
             val messageState =
                     state[messageId] ?:
                             error("State missing for messageId $messageId while acking tuple in $component. Tuple: $input")

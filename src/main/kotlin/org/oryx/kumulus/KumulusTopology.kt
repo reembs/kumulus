@@ -16,14 +16,14 @@ class KumulusTopology(
         val config: Map<String, Any>
 ) : KumulusEmitter {
     private val boltExecutionPool: ThreadPoolExecutor = ThreadPoolExecutor(
-            (config["kumulus.thread_pool.core_pool_size"] as? Long ?: 4L).toInt(),
-            (config["kumulus.thread_pool.max_size"] as? Long ?: 10L).toInt(),
-            config["kumulus.thread_pool.max_size"] as? Long ?: 20L,
+            (config[CONF_THREAD_POOL_CORE_SIZE] as? Long ?: 4L).toInt(),
+            (config[CONF_THREAD_POOL_MAX_SIZE] as? Long ?: 10L).toInt(),
+            config[CONF_THREAD_POOL_MAX_SIZE] as? Long ?: 20L,
             TimeUnit.SECONDS,
-            ArrayBlockingQueue((config["kumulus.thread_pool.keep_alive_secs"] as? Long)?.toInt() ?: 2000)
+            ArrayBlockingQueue((config[CONF_THREAD_POOL_KEEP_ALIVE] as? Long)?.toInt() ?: 2000)
     )
     private val maxSpoutPending: Long
-    private val mainQueue = LinkedBlockingDeque<KumulusMessage>()
+    private val mainQueue = LinkedBlockingQueue<KumulusMessage>()
     private val acker: KumulusAcker
     private val rejectedExecutionHandler = RejectedExecutionHandler { _, _ ->
         logger.error { "Execution was rejected" }
@@ -34,16 +34,31 @@ class KumulusTopology(
     private val shutDownHook = CountDownLatch(1)
 
     init {
-        boltExecutionPool.prestartAllCoreThreads()
-        maxSpoutPending = config[org.apache.storm.Config.TOPOLOGY_MAX_SPOUT_PENDING] as Long? ?: 0L
-        acker = KumulusAcker(this, maxSpoutPending)
+        this.boltExecutionPool.prestartAllCoreThreads()
+        this.maxSpoutPending = config[org.apache.storm.Config.TOPOLOGY_MAX_SPOUT_PENDING] as Long? ?: 0L
+        this.acker = KumulusAcker(
+                this,
+                maxSpoutPending,
+                config[CONF_EXTRA_ACKING] as? Boolean ?: false
+        )
     }
 
     companion object {
         private val logger = KotlinLogging.logger {}
+
+        @JvmField
+        val CONF_EXTRA_ACKING = "kumulus.allow-extra-acking"
+        @JvmField
+        val CONF_THREAD_POOL_KEEP_ALIVE = "kumulus.thread_pool.keep_alive_secs"
+        @JvmField
+        val CONF_THREAD_POOL_MAX_SIZE = "kumulus.thread_pool.max_size"
+        @JvmField
+        val CONF_THREAD_POOL_CORE_SIZE = "kumulus.thread_pool.core_pool_size"
     }
 
     fun prepare() {
+        startQueuePolling()
+
         components.forEach { component ->
             val componentRegisteredOutputs: List<Pair<String, Pair<String, Grouping>>> =
                     componentInputs
@@ -82,8 +97,6 @@ class KumulusTopology(
                 }
             }
         }
-
-        startQueuePolling()
     }
 
     private fun startQueuePolling() {
@@ -119,7 +132,7 @@ class KumulusTopology(
                     })
                 } else {
                     logger.debug { "Component ${c.context.thisComponentId}/${c.taskId()} is currently busy" }
-                    mainQueue.push(message)
+                    mainQueue.add(message)
                 }
             }
         }

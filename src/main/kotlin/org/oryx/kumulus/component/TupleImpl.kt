@@ -6,7 +6,7 @@ import org.apache.storm.tuple.Fields
 import org.apache.storm.tuple.MessageId
 import org.apache.storm.tuple.Tuple
 
-class TupleImpl : Tuple {
+open class TupleImpl : Tuple {
     val spoutMessageId: Any?
 
     private val context: GeneralTopologyContext
