@@ -8,7 +8,7 @@ import org.oryx.kumulus.collector.KumulusSpoutCollector
 import java.util.concurrent.LinkedBlockingDeque
 
 class KumulusSpout(
-        config: MutableMap<String, Any>,
+        config: Map<String, Any>,
         context: TopologyContext,
         componentInstance: IRichSpout
 ) : KumulusComponent(config, context) {

@@ -23,7 +23,7 @@ class KumulusStormTransformer {
     companion object {
         @Suppress("UNCHECKED_CAST")
         @JvmStatic
-        fun initializeTopology(builder: TopologyBuilder, topology: StormTopology?, config: MutableMap<String, Any>, stormId: String) : KumulusTopology {
+        fun initializeTopology(builder: TopologyBuilder, topology: StormTopology?, rawConfig: MutableMap<String, Any>, stormId: String) : KumulusTopology {
             val boltField = TopologyBuilder::class.java.getDeclaredField("_bolts")
             boltField.isAccessible = true
             val boltsMap : Map<String, IComponent> = boltField.get(builder) as Map<String, IRichBolt>
@@ -37,7 +37,7 @@ class KumulusStormTransformer {
             val componentToSortedTasks = mutableMapOf<String, List<Int>>()
             val componentToStreamToFields = mutableMapOf<String, Map<String, Fields>>()
 
-            config[Config.TOPOLOGY_NAME] = stormId
+            rawConfig[Config.TOPOLOGY_NAME] = stormId
 
             componentToSortedTasks[Constants.SYSTEM_COMPONENT_ID] = listOf(Constants.SYSTEM_TASK_ID.toInt())
             componentToStreamToFields[Constants.SYSTEM_COMPONENT_ID] =
@@ -103,6 +103,10 @@ class KumulusStormTransformer {
                         id++
                     }
                 }
+            }
+
+            val config = rawConfig.mapValues { it ->
+                return@mapValues (it.value as? Int)?.toLong() ?: it.value
             }
 
             componentToSortedTasks.forEach({ componentId: String, taskIds: List<Int> ->

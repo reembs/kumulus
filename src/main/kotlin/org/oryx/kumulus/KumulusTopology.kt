@@ -13,11 +13,11 @@ import java.util.concurrent.atomic.AtomicBoolean
 class KumulusTopology(
         private val components: List<KumulusComponent>,
         private val componentInputs: MutableMap<Pair<String, GlobalStreamId>, Grouping>,
-        config: MutableMap<String, Any>
+        val config: Map<String, Any>
 ) : KumulusEmitter {
     private val queue: ArrayBlockingQueue<Runnable> = ArrayBlockingQueue(2000)
     private val boltExecutionPool: ThreadPoolExecutor
-    private val maxSpoutPending: Int
+    private val maxSpoutPending: Long
     private val mainQueue = LinkedBlockingDeque<KumulusMessage>()
     private val acker: KumulusAcker
     private val rejectedExecutionHandler = RejectedExecutionHandler { _, _ ->
@@ -30,7 +30,7 @@ class KumulusTopology(
     init {
         boltExecutionPool = ThreadPoolExecutor(4, 10, 20, TimeUnit.SECONDS, queue)
         boltExecutionPool.prestartAllCoreThreads()
-        maxSpoutPending = config[org.apache.storm.Config.TOPOLOGY_MAX_SPOUT_PENDING] as Int? ?: 0
+        maxSpoutPending = config[org.apache.storm.Config.TOPOLOGY_MAX_SPOUT_PENDING] as Long? ?: 0L
         acker = KumulusAcker(this, maxSpoutPending)
     }
 

@@ -8,7 +8,7 @@ import org.oryx.kumulus.KumulusTuple
 import org.oryx.kumulus.collector.KumulusBoltCollector
 
 class KumulusBolt(
-        config: MutableMap<String, Any>,
+        config: Map<String, Any>,
         context: TopologyContext,
         componentInstance: IRichBolt
 ) : KumulusComponent(config, context) {

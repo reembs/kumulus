@@ -15,7 +15,7 @@ import java.io.Serializable
 import java.util.concurrent.atomic.AtomicBoolean
 
 abstract class KumulusComponent(
-        protected val config: MutableMap<String, Any>,
+        protected val config: Map<String, Any>,
         val context: TopologyContext
 ) {
     val inUse = AtomicBoolean(false)

@@ -8,11 +8,11 @@ import org.oryx.kumulus.component.KumulusSpout
 import org.oryx.kumulus.component.TupleImpl
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicBoolean
-import java.util.concurrent.atomic.AtomicInteger
+import java.util.concurrent.atomic.AtomicLong
 
 class KumulusAcker(
         private val emitter: KumulusEmitter,
-        private val maxSpoutPending: Int
+        private val maxSpoutPending: Long
 ) {
     companion object {
         private val logger = KotlinLogging.logger {}
@@ -20,7 +20,7 @@ class KumulusAcker(
 
     private val state = ConcurrentHashMap<Any, MessageState>()
     private val waitObject = Object()
-    private val currentPending = AtomicInteger(0)
+    private val currentPending = AtomicLong(0)
     private val completeLock = Any()
 
     init {
