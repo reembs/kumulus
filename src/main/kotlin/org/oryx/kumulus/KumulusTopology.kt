@@ -4,12 +4,9 @@ import mu.KotlinLogging
 import org.apache.storm.Constants
 import org.apache.storm.generated.GlobalStreamId
 import org.apache.storm.generated.Grouping
-import org.apache.storm.tuple.Fields
-import org.apache.storm.tuple.Tuple
 import org.oryx.kumulus.collector.KumulusBoltCollector
 import org.oryx.kumulus.collector.KumulusSpoutCollector
 import org.oryx.kumulus.component.*
-import java.util.*
 import java.util.concurrent.*
 import java.util.concurrent.atomic.AtomicBoolean
 
@@ -69,7 +66,6 @@ class KumulusTopology(
                                         systemComponent,
                                         Constants.SYSTEM_TICK_STREAM_ID,
                                         listOf(),
-                                        null,
                                         null
                                 )
                                 mainQueue.add(ExecuteMessage(component, tuple))

@@ -37,6 +37,8 @@ class KumulusStormTransformer {
             val componentToSortedTasks = mutableMapOf<String, List<Int>>()
             val componentToStreamToFields = mutableMapOf<String, Map<String, Fields>>()
 
+            config[Config.TOPOLOGY_NAME] = stormId
+
             componentToSortedTasks[Constants.SYSTEM_COMPONENT_ID] = listOf(Constants.SYSTEM_TASK_ID.toInt())
             componentToStreamToFields[Constants.SYSTEM_COMPONENT_ID] =
                     mapOf(Pair(Constants.SYSTEM_TICK_STREAM_ID, Fields()))
@@ -116,7 +118,7 @@ class KumulusStormTransformer {
                                 BasicBoltExecutor(object : BaseBasicBolt() {
                                     override fun execute(input: Tuple?, collector: BasicOutputCollector?) {}
                                     override fun declareOutputFields(declarer: OutputFieldsDeclarer?) {
-                                        declarer?.declareStream(Constants.SYSTEM_TICK_STREAM_ID, Fields())
+                                        // Declared hard-coded
                                     }
                                 })
                             } else {

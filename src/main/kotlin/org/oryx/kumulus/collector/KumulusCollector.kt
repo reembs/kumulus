@@ -22,11 +22,10 @@ abstract class KumulusCollector<T: KumulusComponent>(
         private val logger = KotlinLogging.logger {}
     }
 
-    private fun emit(
+    private fun componentEmit(
             streamId: String?,
             tuple: MutableList<Any>,
-            messageId: Any?,
-            anchors: Collection<Tuple>?
+            messageId: Any?
     ) : MutableList<Int> {
         val ret = mutableListOf<Int>()
 
@@ -40,7 +39,7 @@ abstract class KumulusCollector<T: KumulusComponent>(
 
                 // First, expand all trees
                 executes += emitToInstance.map { destComponent ->
-                    val kumulusTuple = KumulusTuple(component, streamId ?: Utils.DEFAULT_STREAM_ID, tuple, anchors, messageId)
+                    val kumulusTuple = KumulusTuple(component, streamId ?: Utils.DEFAULT_STREAM_ID, tuple, messageId)
                     acker.expandTrees(component, destComponent.taskId(), kumulusTuple)
                     Pair(destComponent, kumulusTuple)
                 }.toList()
@@ -69,12 +68,12 @@ abstract class KumulusCollector<T: KumulusComponent>(
                     assert(this.size <= 1) { "Found more than a single message ID in emitted anchors: $anchors" }
                 }
                 ?.firstOrNull()
-        return emit(streamId, tuple, messageId, anchors)
+        return componentEmit(streamId, tuple, messageId)
     }
 
     fun emit(streamId: String?, tuple: MutableList<Any>, messageId: Any?): MutableList<Int> {
         assert(component is KumulusSpout) { "Bolts wrong emit method called for '${component.context.thisComponentId}'" }
         acker.startTree(component as KumulusSpout, messageId)
-        return emit(streamId, tuple, messageId!!, null)
+        return componentEmit(streamId, tuple, messageId!!)
     }
 }
