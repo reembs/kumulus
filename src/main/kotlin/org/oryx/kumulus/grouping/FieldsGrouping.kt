@@ -14,13 +14,13 @@ class FieldsGrouping(
         this.tasks = targetTasks.toList()
     }
 
-    override fun chooseTasks(taskId: Int, values: List<Any>): List<Int> {
+    override fun chooseTasks(taskId: Int, values: List<Any?>): List<Int> {
         var groupingHashes = 0L
 
         groupingFields.forEach { gField ->
             outputFields.let {
                 val fieldValue = values[it.indexOf(gField)]
-                groupingHashes += fieldValue.hashCode()
+                groupingHashes += fieldValue?.hashCode() ?: 0
             }
         }
 

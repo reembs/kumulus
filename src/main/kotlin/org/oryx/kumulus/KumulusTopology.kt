@@ -15,8 +15,13 @@ class KumulusTopology(
         private val componentInputs: MutableMap<Pair<String, GlobalStreamId>, Grouping>,
         val config: Map<String, Any>
 ) : KumulusEmitter {
-    private val queue: ArrayBlockingQueue<Runnable> = ArrayBlockingQueue(2000)
-    private val boltExecutionPool: ThreadPoolExecutor
+    private val boltExecutionPool: ThreadPoolExecutor = ThreadPoolExecutor(
+            (config["kumulus.thread_pool.core_pool_size"] as? Long ?: 4L).toInt(),
+            (config["kumulus.thread_pool.max_size"] as? Long ?: 10L).toInt(),
+            config["kumulus.thread_pool.max_size"] as? Long ?: 20L,
+            TimeUnit.SECONDS,
+            ArrayBlockingQueue((config["kumulus.thread_pool.keep_alive_secs"] as? Long)?.toInt() ?: 2000)
+    )
     private val maxSpoutPending: Long
     private val mainQueue = LinkedBlockingDeque<KumulusMessage>()
     private val acker: KumulusAcker
@@ -26,9 +31,9 @@ class KumulusTopology(
     private val tickExecutor = ScheduledThreadPoolExecutor(1, rejectedExecutionHandler)
     private val started = AtomicBoolean(false)
     private val systemComponent = components.first { it.taskId() == Constants.SYSTEM_TASK_ID.toInt() }
+    private val shutDownHook = CountDownLatch(1)
 
     init {
-        boltExecutionPool = ThreadPoolExecutor(4, 10, 20, TimeUnit.SECONDS, queue)
         boltExecutionPool.prestartAllCoreThreads()
         maxSpoutPending = config[org.apache.storm.Config.TOPOLOGY_MAX_SPOUT_PENDING] as Long? ?: 0L
         acker = KumulusAcker(this, maxSpoutPending)
@@ -125,7 +130,7 @@ class KumulusTopology(
         }
     }
 
-    fun start() {
+    fun start(block: Boolean = false) {
         val spouts = components.filter { it is KumulusSpout }.map { it as KumulusSpout }
         spouts.forEach { spout ->
             Thread {
@@ -157,12 +162,16 @@ class KumulusTopology(
             }
         }
         started.set(true)
+        if (block) {
+            shutDownHook.await()
+        }
     }
 
     fun stop() {
         println("Max pool size: ${boltExecutionPool.maximumPoolSize}")
         boltExecutionPool.shutdown()
         boltExecutionPool.awaitTermination(30, TimeUnit.SECONDS)
+        shutDownHook.countDown()
     }
 
     // KumulusEmitter impl
