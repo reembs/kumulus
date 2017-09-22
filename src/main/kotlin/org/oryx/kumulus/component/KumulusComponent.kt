@@ -70,17 +70,12 @@ fun KumulusComponent.isSpout() : Boolean {
     } ?: throw UnsupportedOperationException()
 }
 
-abstract class KumulusMessage(val type: Type, val component: KumulusComponent) {
-    enum class Type {
-        PREPARE, EXECUTE, ACK
-    }
-}
+abstract class KumulusMessage(val component: KumulusComponent)
 
 abstract class PrepareMessage<in T: KumulusComponent>(
         component: KumulusComponent,
         val collector: KumulusCollector<in T>
-) :
-        KumulusMessage(Type.PREPARE, component)
+) : KumulusMessage(component)
 
 class SpoutPrepareMessage(component: KumulusComponent, collector: KumulusSpoutCollector) :
         PrepareMessage<KumulusSpout>(component, collector)
@@ -89,6 +84,6 @@ class BoltPrepareMessage(component: KumulusComponent, collector: KumulusBoltColl
         PrepareMessage<KumulusBolt>(component, collector)
 
 class ExecuteMessage(component: KumulusComponent, val tuple: KumulusTuple) :
-        KumulusMessage(Type.EXECUTE, component)
+        KumulusMessage(component)
 
-class AckMessage(spout: KumulusSpout, val spoutMessageId: Any?, val ack: Boolean) : KumulusMessage(Type.ACK, spout)
+class AckMessage(spout: KumulusSpout, val spoutMessageId: Any?, val ack: Boolean) : KumulusMessage(spout)

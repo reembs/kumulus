@@ -9,11 +9,30 @@ val builder = org.apache.storm.topology.TopologyBuilder()
 val config: MutableMap<String, Any> = mutableMapOf()
 
 builder.setSpout("spout", Spout())
-builder.setBolt("bolt", Bolt()).shuffleGrouping("spout")
+builder.setBolt("bolt", Bolt())
+        .shuffleGrouping("spout")
 
-val kumulusTopology = KumulusStormTransformer.initializeTopology(builder, topology, config, "topology_name")
+val kumulusTopology = KumulusStormTransformer.initializeTopology(
+        builder, builder.createTopology(), config, "topology_name")
 kumulusTopology.prepare()
 kumulusTopology.start()
+```
+
+Or from Java:
+```java
+TopologyBuilder builder = new TopologyBuilder();
+
+Map<String, Object> config = new HashMap<String, Object>();
+
+builder.setSpout("spout", new Spout());
+builder.setBolt("bolt", new Bolt())
+        .shuffleGrouping("spout");
+
+KumulusTopology kumulusTopology =
+        KumulusStormTransformer.initializeTopology(
+            builder, builder.createTopology(), config, "topology_name");
+kumulusTopology.prepare();
+kumulusTopology.start();
 ```
 
 Latency histograms produced by passing 100,000 (10% warm-up) tiny tuples into the fairly simple topology defined in KumulusStormTransformerTest:

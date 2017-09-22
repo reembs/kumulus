@@ -22,6 +22,7 @@ import java.io.Serializable
 class KumulusStormTransformer {
     companion object {
         @Suppress("UNCHECKED_CAST")
+        @JvmStatic
         fun initializeTopology(builder: TopologyBuilder, topology: StormTopology?, config: MutableMap<String, Any>, stormId: String) : KumulusTopology {
             val boltField = TopologyBuilder::class.java.getDeclaredField("_bolts")
             boltField.isAccessible = true
@@ -157,7 +158,7 @@ class KumulusStormTransformer {
                 })
             })
 
-            return KumulusTopology(kComponents, kComponentInputs, componentToStreamToFields, config)
+            return KumulusTopology(kComponents, kComponentInputs, config)
         }
     }
 }

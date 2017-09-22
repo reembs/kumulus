@@ -81,7 +81,7 @@ class KumulusAcker(
         if (maxSpoutPending > 0) {
             synchronized(waitObject) {
                 if (currentPending.get() >= maxSpoutPending) {
-                    logger.debug { "Waiting for spout availability" }
+                    logger.trace { "Waiting for spout availability" }
                     waitObject.wait()
                 }
             }

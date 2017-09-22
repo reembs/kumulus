@@ -16,13 +16,11 @@ import java.util.concurrent.atomic.AtomicBoolean
 class KumulusTopology(
         private val components: List<KumulusComponent>,
         private val componentInputs: MutableMap<Pair<String, GlobalStreamId>, Grouping>,
-        private val componentToStreamToFields: MutableMap<String, Map<String, Fields>>,
         config: MutableMap<String, Any>
 ) : KumulusEmitter {
     private val queue: ArrayBlockingQueue<Runnable> = ArrayBlockingQueue(2000)
     private val boltExecutionPool: ThreadPoolExecutor
     private val maxSpoutPending: Int
-    private val random = Random()
     private val mainQueue = LinkedBlockingDeque<KumulusMessage>()
     private val acker: KumulusAcker
     private val rejectedExecutionHandler = RejectedExecutionHandler { _, _ ->
