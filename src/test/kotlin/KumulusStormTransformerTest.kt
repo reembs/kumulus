@@ -3,7 +3,6 @@ import org.HdrHistogram.Histogram
 import org.apache.storm.Config
 import org.apache.storm.Config.TOPOLOGY_TICK_TUPLE_FREQ_SECS
 import org.apache.storm.Constants
-import org.apache.storm.LocalCluster
 import org.apache.storm.spout.SpoutOutputCollector
 import org.apache.storm.task.OutputCollector
 import org.apache.storm.task.TopologyContext
@@ -15,9 +14,9 @@ import org.apache.storm.topology.base.BaseBasicBolt
 import org.apache.storm.topology.base.BaseRichSpout
 import org.apache.storm.tuple.Fields
 import org.apache.storm.tuple.Tuple
-import org.apache.storm.utils.Utils
 import org.junit.Test
 import org.oryx.kumulus.KumulusStormTransformer
+import org.oryx.kumulus.KumulusTopology
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.atomic.AtomicLong
 
@@ -150,19 +149,21 @@ internal class KumulusStormTransformerTest {
         config.set(Config.TOPOLOGY_DISRUPTOR_BATCH_TIMEOUT_MILLIS, 1)
         config.set(Config.STORM_CLUSTER_MODE, "local")
         config.set(Config.TOPOLOGY_MAX_SPOUT_PENDING, maxPending)
+        config.set(KumulusTopology.CONF_THREAD_POOL_CORE_SIZE, 1L)
+        config.set(KumulusTopology.CONF_THREAD_POOL_MAX_SIZE, 20L)
 
         val kumulusTopology =
                 KumulusStormTransformer.initializeTopology(builder, topology, config, "testtopology")
         kumulusTopology.prepare()
         kumulusTopology.start()
         finish.await()
+
+        logger.info { "Done, took: ${System.currentTimeMillis() - start.get()}ms" }
         kumulusTopology.stop()
 
 //        val cluster = LocalCluster()
 //        cluster.submitTopology("testtopology", config, topology)
 //        finish.await()
-
-        println("Done, took: ${System.currentTimeMillis() - start.get()}ms")
     }
 
     class TestBasicBolt(private val failing: Boolean = false) : BaseBasicBolt() {

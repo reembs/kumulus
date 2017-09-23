@@ -11,17 +11,20 @@ class KumulusSpoutCollector(
         component: KumulusComponent,
         componentRegisteredOutputs: List<Pair<String, Pair<String, Grouping>>>,
         emitter: KumulusEmitter,
-        acker : KumulusAcker
-) : KumulusCollector<KumulusSpout>(component, componentRegisteredOutputs, emitter, acker), ISpoutOutputCollector {
+        acker : KumulusAcker,
+        errorHandler : ((Throwable?) -> Unit)?
+) : KumulusCollector<KumulusSpout>(
+        component,
+        componentRegisteredOutputs,
+        emitter,
+        acker,
+        errorHandler
+), ISpoutOutputCollector {
     override fun emitDirect(taskId: Int, streamId: String?, tuple: MutableList<Any>?, messageId: Any?) {
         TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
     }
 
     override fun getPendingCount(): Long {
-        TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
-    }
-
-    override fun reportError(error: Throwable?) {
-        TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
+        return acker.getPendingCount()
     }
 }

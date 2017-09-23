@@ -99,11 +99,14 @@ class KumulusAcker(
         }
     }
 
-    fun awaitEmptyState() {
-        logger.info { "Waiting for acker states to empty" }
-        while (currentPending.get() > 0) {
-            Thread.sleep(busyPollSleep)
+    fun releaseSpoutBlocks() {
+        synchronized(waitObject) {
+            waitObject.notifyAll()
         }
+    }
+
+    fun getPendingCount(): Long {
+        return this.currentPending.get()
     }
 
     private fun checkComplete(messageState: MessageState, component: KumulusComponent, input: Tuple?) {

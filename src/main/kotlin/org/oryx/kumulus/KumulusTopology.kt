@@ -20,8 +20,20 @@ class KumulusTopology(
             (config[CONF_THREAD_POOL_MAX_SIZE] as? Long ?: 10L).toInt(),
             config[CONF_THREAD_POOL_MAX_SIZE] as? Long ?: 20L,
             TimeUnit.SECONDS,
-            ArrayBlockingQueue((config[CONF_THREAD_POOL_KEEP_ALIVE] as? Long)?.toInt() ?: 2000)
+            ArrayBlockingQueue((config[CONF_THREAD_POOL_KEEP_ALIVE] as? Long)?.toInt() ?: 2000),
+            object: ThreadFactory {
+                var count = 0
+                override fun newThread(r: Runnable?): Thread {
+                    count++
+                    return Thread(r).apply {
+                        this.isDaemon = true
+                        this.name = "KumulusExecutionThread-$count"
+                    }
+                }
+            },
+            ThreadPoolExecutor.AbortPolicy()
     )
+    private val stopLock = Any()
     private val maxSpoutPending: Long
     private val mainQueue = LinkedBlockingQueue<KumulusMessage>()
     private val acker: KumulusAcker
@@ -33,7 +45,10 @@ class KumulusTopology(
     private val systemComponent = components.first { it.taskId() == Constants.SYSTEM_TASK_ID.toInt() }
     private val shutDownHook = CountDownLatch(1)
     private val busyPollSleepTime: Long = config[CONF_BUSY_POLL_SLEEP_TIME] as? Long ?: 5L
-    private val shutdownTimeoutSecs = config[CONF_SHUTDOWN_TIMEOUT_SECS] as? Long ?: 30L
+    private val shutdownTimeoutSecs = config[CONF_SHUTDOWN_TIMEOUT_SECS] as? Long ?: 10L
+
+    var onBusyBoltHook: ((String, Int) -> Unit)? = null
+    val onReportErrorHook: ((Throwable?) -> Unit)? = null
 
     init {
         this.boltExecutionPool.prestartAllCoreThreads()
@@ -75,10 +90,10 @@ class KumulusTopology(
             mainQueue.add(when (component) {
                 is KumulusSpout ->
                     SpoutPrepareMessage(
-                            component, KumulusSpoutCollector(component, componentRegisteredOutputs, this, acker))
+                            component, KumulusSpoutCollector(component, componentRegisteredOutputs, this, acker, onReportErrorHook))
                 is KumulusBolt -> {
                     BoltPrepareMessage(
-                            component, KumulusBoltCollector(component, componentRegisteredOutputs, this, acker))
+                            component, KumulusBoltCollector(component, componentRegisteredOutputs, this, acker, onReportErrorHook))
                 }
                 else ->
                     throw UnsupportedOperationException()
@@ -109,37 +124,43 @@ class KumulusTopology(
     private fun startQueuePolling() {
         val pollerRunnable = {
             while (true) {
-                val message = mainQueue.take()!!
-                val c = message.component
-                if (c.inUse.compareAndSet(false, true)) {
-                    boltExecutionPool.execute({
-                        try {
-                            when (message) {
-                                is PrepareMessage<*> -> {
-                                    if (c.isSpout())
-                                        (c as KumulusSpout).prepare(message.collector as KumulusSpoutCollector)
-                                    else
-                                        (c as KumulusBolt).prepare(message.collector as KumulusBoltCollector)
-                                }
-                                is ExecuteMessage -> {
-                                    assert(!c.isSpout()) {
-                                        logger.error {
-                                            "Execute message got to a spout '${c.context.thisComponentId}', " +
-                                                    "this shouldn't happen."
-                                        }
+                mainQueue.poll(1, TimeUnit.SECONDS)?.let { message ->
+                    val c = message.component
+                    if (c.inUse.compareAndSet(false, true)) {
+                        boltExecutionPool.execute({
+                            try {
+                                when (message) {
+                                    is PrepareMessage<*> -> {
+                                        if (c.isSpout())
+                                            (c as KumulusSpout).prepare(message.collector as KumulusSpoutCollector)
+                                        else
+                                            (c as KumulusBolt).prepare(message.collector as KumulusBoltCollector)
                                     }
-                                    (c as KumulusBolt).execute(message.tuple)
+                                    is ExecuteMessage -> {
+                                        assert(!c.isSpout()) {
+                                            logger.error {
+                                                "Execute message got to a spout '${c.context.thisComponentId}', " +
+                                                        "this shouldn't happen."
+                                            }
+                                        }
+                                        (c as KumulusBolt).execute(message.tuple)
+                                    }
+                                    else ->
+                                        throw UnsupportedOperationException("Operation of type ${c.javaClass.canonicalName} is unsupported")
                                 }
-                                else ->
-                                    throw UnsupportedOperationException("Operation of type ${c.javaClass.canonicalName} is unsupported")
+                            } catch (e: Exception) {
+                                logger.error("An uncaught exception in component '${c.context.thisComponentId}' has forced a Kumulus shutdown", e)
+                                this.stop()
+                                throw e
+                            } finally {
+                                c.inUse.set(false)
                             }
-                        } finally {
-                            c.inUse.set(false)
-                        }
-                    })
-                } else {
-                    logger.trace { "Component ${c.context.thisComponentId}/${c.taskId()} is currently busy" }
-                    mainQueue.add(message)
+                        })
+                    } else {
+                        logger.trace { "Component ${c.context.thisComponentId}/${c.taskId()} is currently busy" }
+                        onBusyBoltHook?.let { it(c.context.thisComponentId, c.taskId()) }
+                        mainQueue.add(message)
+                    }
                 }
             }
         }
@@ -154,44 +175,45 @@ class KumulusTopology(
         val spouts = components.filter { it is KumulusSpout }.map { it as KumulusSpout }
         spouts.forEach { spout ->
             Thread {
-                while (true) {
-                    if (spout.isReady.get()) {
-                        spout.activate();
-                        break
-                    }
-                    Thread.sleep(busyPollSleepTime)
-                }
-                while (true) {
-                    spout.queue.poll()?.also { ackMessage ->
-                        if (ackMessage.ack) {
-                            spout.ack(ackMessage.spoutMessageId)
-                        } else {
-                            spout.fail(ackMessage.spoutMessageId)
-                        }
-                    }.let {
-                        if (it == null && spout.isReady.get()) {
-                            acker.waitForSpoutAvailability()
-                            if (spout.inUse.compareAndSet(false, true)) {
-                                try {
-                                    if (spout.isReady.get()) {
-                                        spout.nextTuple()
-                                    }
-                                } finally {
-                                    spout.inUse.set(false)
-                                }
-                            }
-                        }
-                    }
-                    if (!spout.isReady.get()) {
-                        if (!spout.deactivated) {
-                            try {
-                                spout.deactivate()
-                            } finally {
-                                spout.deactivated = true
-                            }
+                try {
+                    while (true) {
+                        if (spout.isReady.get()) {
+                            spout.activate()
+                            break
                         }
                         Thread.sleep(busyPollSleepTime)
                     }
+                    while (true) {
+                        spout.queue.poll()?.also { ackMessage ->
+                            if (ackMessage.ack) {
+                                spout.ack(ackMessage.spoutMessageId)
+                            } else {
+                                spout.fail(ackMessage.spoutMessageId)
+                            }
+                        }.let {
+                            if (it == null && spout.isReady.get()) {
+                                acker.waitForSpoutAvailability()
+                                if (spout.inUse.compareAndSet(false, true)) {
+                                    try {
+                                        if (spout.isReady.get()) {
+                                            spout.nextTuple()
+                                        }
+                                    } finally {
+                                        spout.inUse.set(false)
+                                    }
+                                }
+                            }
+                        }
+                        if (!spout.isReady.get()) {
+                            spout.deactivate()
+                            return@Thread
+                        }
+                    }
+                } catch (e: Exception) {
+                    logger.error("An uncaught exception in spout '${spout.context.thisComponentId}' has forced a Kumulus shutdown", e)
+                    spout.deactivate()
+                    this.stop()
+                    throw e
                 }
             }.apply {
                 this.isDaemon = true
@@ -205,20 +227,21 @@ class KumulusTopology(
     }
 
     fun stop() {
-        logger.info("Max pool size: ${boltExecutionPool.maximumPoolSize}")
-        logger.info { "Deactivating all spouts" }
-        components.filter { it is KumulusSpout }.forEach{
-            it.isReady.set(false)
+        synchronized(stopLock) {
+            if (shutDownHook.count > 0) {
+                logger.info("Max pool size: ${boltExecutionPool.poolSize}")
+                logger.info { "Deactivating all spouts" }
+                components.filter { it is KumulusSpout }.forEach {
+                    it.isReady.set(false)
+                }
+                acker.releaseSpoutBlocks()
+                logger.info { "Shutting down thread pool and awaiting termination (max: ${shutdownTimeoutSecs}s)" }
+                boltExecutionPool.shutdown()
+                boltExecutionPool.awaitTermination(shutdownTimeoutSecs, TimeUnit.SECONDS)
+                logger.info { "Execution engine threads have been shut down" }
+                shutDownHook.countDown()
+            }
         }
-        logger.info { "Waiting for spouts to deactivate" }
-        while (!components.filter { it is KumulusSpout }.all { (it as KumulusSpout).deactivated }) {
-            Thread.sleep(busyPollSleepTime)
-        }
-        acker.awaitEmptyState()
-        logger.info { "Shutting down thread pool and awaiting termination (max: ${shutdownTimeoutSecs}s)" }
-        boltExecutionPool.shutdown()
-        boltExecutionPool.awaitTermination(shutdownTimeoutSecs, TimeUnit.SECONDS)
-        shutDownHook.countDown()
     }
 
     // KumulusEmitter impl

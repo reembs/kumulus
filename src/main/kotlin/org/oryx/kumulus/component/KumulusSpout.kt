@@ -6,6 +6,7 @@ import org.apache.storm.task.TopologyContext
 import org.apache.storm.topology.IRichSpout
 import org.oryx.kumulus.collector.KumulusSpoutCollector
 import java.util.concurrent.LinkedBlockingQueue
+import java.util.concurrent.atomic.AtomicBoolean
 
 class KumulusSpout(
         config: Map<String, Any>,
@@ -17,9 +18,8 @@ class KumulusSpout(
     }
 
     private val spout: IRichSpout = componentInstance
-
-    @Volatile
-    var deactivated = false
+    private val deactivationLock = Any()
+    private val deactivated = AtomicBoolean(false)
 
     val queue = LinkedBlockingQueue<AckMessage>()
 
@@ -46,6 +46,13 @@ class KumulusSpout(
     }
 
     fun deactivate() {
-        spout.deactivate()
+        if (!deactivated.get()) {
+            synchronized(deactivationLock) {
+                if (!deactivated.get()) {
+                    deactivated.set(true)
+                    spout.deactivate()
+                }
+            }
+        }
     }
 }

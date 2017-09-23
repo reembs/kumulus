@@ -16,10 +16,20 @@ abstract class KumulusCollector<T: KumulusComponent>(
         protected val component : KumulusComponent,
         private val componentRegisteredOutputs: List<Pair<String, Pair<String, Grouping>>>,
         private val emitter: KumulusEmitter,
-        protected val acker : KumulusAcker
+        protected val acker : KumulusAcker,
+        private val errorHandler : ((Throwable?) -> Unit)? = null
 ) {
     companion object {
         private val logger = KotlinLogging.logger {}
+    }
+
+    fun reportError(error: Throwable?) {
+        if (errorHandler == null) {
+            logger.error("An error was reported from bolt " +
+                    "${component.context.thisComponentId}/${component.context.thisTaskId}", error)
+        } else {
+            errorHandler.invoke(error)
+        }
     }
 
     private fun componentEmit(
