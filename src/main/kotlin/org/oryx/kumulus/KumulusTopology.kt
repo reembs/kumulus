@@ -32,6 +32,8 @@ class KumulusTopology(
     private val started = AtomicBoolean(false)
     private val systemComponent = components.first { it.taskId() == Constants.SYSTEM_TASK_ID.toInt() }
     private val shutDownHook = CountDownLatch(1)
+    private val busyPollSleepTime: Long = config[CONF_BUSY_POLL_SLEEP_TIME] as? Long ?: 5L
+    private val shutdownTimeoutSecs = config[CONF_SHUTDOWN_TIMEOUT_SECS] as? Long ?: 30L
 
     init {
         this.boltExecutionPool.prestartAllCoreThreads()
@@ -39,7 +41,8 @@ class KumulusTopology(
         this.acker = KumulusAcker(
                 this,
                 maxSpoutPending,
-                config[CONF_EXTRA_ACKING] as? Boolean ?: false
+                config[CONF_EXTRA_ACKING] as? Boolean ?: false,
+                busyPollSleepTime
         )
     }
 
@@ -54,6 +57,10 @@ class KumulusTopology(
         val CONF_THREAD_POOL_MAX_SIZE = "kumulus.thread_pool.max_size"
         @JvmField
         val CONF_THREAD_POOL_CORE_SIZE = "kumulus.thread_pool.core_pool_size"
+        @JvmField
+        val CONF_BUSY_POLL_SLEEP_TIME = "kumulus.spout.not-ready-sleep"
+        @JvmField
+        val CONF_SHUTDOWN_TIMEOUT_SECS = "kumulus.shutdown.timeout.secs"
     }
 
     fun prepare() {
@@ -131,7 +138,7 @@ class KumulusTopology(
                         }
                     })
                 } else {
-                    logger.debug { "Component ${c.context.thisComponentId}/${c.taskId()} is currently busy" }
+                    logger.trace { "Component ${c.context.thisComponentId}/${c.taskId()} is currently busy" }
                     mainQueue.add(message)
                 }
             }
@@ -149,24 +156,41 @@ class KumulusTopology(
             Thread {
                 while (true) {
                     if (spout.isReady.get()) {
-                        spout.queue.poll()?.also { ackMessage ->
-                            if (ackMessage.ack) {
-                                spout.ack(ackMessage.spoutMessageId)
-                            } else {
-                                spout.fail(ackMessage.spoutMessageId)
-                            }
-                        }.let {
-                            if (it == null) {
-                                acker.waitForSpoutAvailability()
-                                if (spout.inUse.compareAndSet(false, true)) {
-                                    try {
+                        spout.activate();
+                        break
+                    }
+                    Thread.sleep(busyPollSleepTime)
+                }
+                while (true) {
+                    spout.queue.poll()?.also { ackMessage ->
+                        if (ackMessage.ack) {
+                            spout.ack(ackMessage.spoutMessageId)
+                        } else {
+                            spout.fail(ackMessage.spoutMessageId)
+                        }
+                    }.let {
+                        if (it == null && spout.isReady.get()) {
+                            acker.waitForSpoutAvailability()
+                            if (spout.inUse.compareAndSet(false, true)) {
+                                try {
+                                    if (spout.isReady.get()) {
                                         spout.nextTuple()
-                                    } finally {
-                                        spout.inUse.set(false)
                                     }
+                                } finally {
+                                    spout.inUse.set(false)
                                 }
                             }
                         }
+                    }
+                    if (!spout.isReady.get()) {
+                        if (!spout.deactivated) {
+                            try {
+                                spout.deactivate()
+                            } finally {
+                                spout.deactivated = true
+                            }
+                        }
+                        Thread.sleep(busyPollSleepTime)
                     }
                 }
             }.apply {
@@ -181,9 +205,19 @@ class KumulusTopology(
     }
 
     fun stop() {
-        println("Max pool size: ${boltExecutionPool.maximumPoolSize}")
+        logger.info("Max pool size: ${boltExecutionPool.maximumPoolSize}")
+        logger.info { "Deactivating all spouts" }
+        components.filter { it is KumulusSpout }.forEach{
+            it.isReady.set(false)
+        }
+        logger.info { "Waiting for spouts to deactivate" }
+        while (!components.filter { it is KumulusSpout }.all { (it as KumulusSpout).deactivated }) {
+            Thread.sleep(busyPollSleepTime)
+        }
+        acker.awaitEmptyState()
+        logger.info { "Shutting down thread pool and awaiting termination (max: ${shutdownTimeoutSecs}s)" }
         boltExecutionPool.shutdown()
-        boltExecutionPool.awaitTermination(30, TimeUnit.SECONDS)
+        boltExecutionPool.awaitTermination(shutdownTimeoutSecs, TimeUnit.SECONDS)
         shutDownHook.countDown()
     }
 

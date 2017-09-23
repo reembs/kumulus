@@ -5,7 +5,7 @@ import org.apache.storm.spout.SpoutOutputCollector
 import org.apache.storm.task.TopologyContext
 import org.apache.storm.topology.IRichSpout
 import org.oryx.kumulus.collector.KumulusSpoutCollector
-import java.util.concurrent.LinkedBlockingDeque
+import java.util.concurrent.LinkedBlockingQueue
 
 class KumulusSpout(
         config: Map<String, Any>,
@@ -18,7 +18,10 @@ class KumulusSpout(
 
     private val spout: IRichSpout = componentInstance
 
-    val queue = LinkedBlockingDeque<AckMessage>()
+    @Volatile
+    var deactivated = false
+
+    val queue = LinkedBlockingQueue<AckMessage>()
 
     fun prepare(collector: KumulusSpoutCollector) {
         logger.debug { "Created spout '${context.thisComponentId}' with taskId ${context.thisTaskId} (index: ${context.thisTaskIndex}). Object hashcode: ${this.hashCode()}" }
@@ -36,5 +39,13 @@ class KumulusSpout(
 
     fun fail(msgId: Any?) {
         spout.fail(msgId)
+    }
+
+    fun activate() {
+        spout.activate()
+    }
+
+    fun deactivate() {
+        spout.deactivate()
     }
 }

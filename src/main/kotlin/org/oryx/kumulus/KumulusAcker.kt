@@ -13,7 +13,8 @@ import java.util.concurrent.atomic.AtomicLong
 class KumulusAcker(
         private val emitter: KumulusEmitter,
         private val maxSpoutPending: Long,
-        private val allowExtraAcking: Boolean
+        private val allowExtraAcking: Boolean,
+        private val busyPollSleep: Long
 ) {
     companion object {
         private val logger = KotlinLogging.logger {}
@@ -98,6 +99,13 @@ class KumulusAcker(
         }
     }
 
+    fun awaitEmptyState() {
+        logger.info { "Waiting for acker states to empty" }
+        while (currentPending.get() > 0) {
+            Thread.sleep(busyPollSleep)
+        }
+    }
+
     private fun checkComplete(messageState: MessageState, component: KumulusComponent, input: Tuple?) {
         val key = Pair(component.taskId(), input)
         (input as TupleImpl).spoutMessageId?.let { spoutMessageId ->
@@ -146,11 +154,11 @@ class KumulusAcker(
             currentPending.decrementAndGet()
         }
     }
-
     inner class MessageState(
             val spout: KumulusSpout
     ) {
         val pendingTasks = ConcurrentHashSet<Pair<Int, Tuple>>()
         var ack = AtomicBoolean(true)
+
     }
 }
