@@ -1,6 +1,7 @@
 package org.oryx.kumulus
 
 import mu.KotlinLogging
+import org.apache.storm.Config
 import org.apache.storm.Constants
 import org.apache.storm.generated.GlobalStreamId
 import org.apache.storm.generated.Grouping
@@ -15,26 +16,31 @@ class KumulusTopology(
         private val componentInputs: MutableMap<Pair<String, GlobalStreamId>, Grouping>,
         val config: Map<String, Any>
 ) : KumulusEmitter {
+    private val maxSpoutPending: Long = config[Config.TOPOLOGY_MAX_SPOUT_PENDING] as Long? ?: 0L
     private val boltExecutionPool: ThreadPoolExecutor = ThreadPoolExecutor(
-            (config[CONF_THREAD_POOL_CORE_SIZE] as? Long ?: 4L).toInt(),
-            (config[CONF_THREAD_POOL_MAX_SIZE] as? Long ?: 10L).toInt(),
-            config[CONF_THREAD_POOL_MAX_SIZE] as? Long ?: 20L,
+            (config[CONF_THREAD_POOL_CORE_SIZE] as? Long ?: 1L).toInt(),
+            (config[CONF_THREAD_POOL_MAX_SIZE] as? Long ?: components.size.toLong()).toInt(),
+            config[CONF_THREAD_POOL_KEEP_ALIVE] as? Long ?: 20L,
             TimeUnit.SECONDS,
-            ArrayBlockingQueue((config[CONF_THREAD_POOL_KEEP_ALIVE] as? Long)?.toInt() ?: 2000),
+            ArrayBlockingQueue((config[CONF_THREAD_POOL_QUEUE_SIZE] as? Long)?.toInt() ?: components.size * 2),
             object: ThreadFactory {
                 var count = 0
                 override fun newThread(r: Runnable?): Thread {
                     count++
+                    logger.info { "Creating new thread: $count" }
                     return Thread(r).apply {
                         this.isDaemon = true
-                        this.name = "KumulusExecutionThread-$count"
+                        this.name = "KumulusThread-$count"
                     }
                 }
             },
-            ThreadPoolExecutor.AbortPolicy()
+            RejectedExecutionHandler { r, executor ->
+                if (!executor.isShutdown && !executor.isTerminating && !executor.isTerminated) {
+                    executor!!.queue.put(r)
+                }
+            }
     )
     private val stopLock = Any()
-    private val maxSpoutPending: Long
     private val mainQueue = LinkedBlockingQueue<KumulusMessage>()
     private val acker: KumulusAcker
     private val rejectedExecutionHandler = RejectedExecutionHandler { _, _ ->
@@ -52,7 +58,6 @@ class KumulusTopology(
 
     init {
         this.boltExecutionPool.prestartAllCoreThreads()
-        this.maxSpoutPending = config[org.apache.storm.Config.TOPOLOGY_MAX_SPOUT_PENDING] as Long? ?: 0L
         this.acker = KumulusAcker(
                 this,
                 maxSpoutPending,
@@ -68,6 +73,8 @@ class KumulusTopology(
         val CONF_EXTRA_ACKING = "kumulus.allow-extra-acking"
         @JvmField
         val CONF_THREAD_POOL_KEEP_ALIVE = "kumulus.thread_pool.keep_alive_secs"
+        @JvmField
+        val CONF_THREAD_POOL_QUEUE_SIZE = "kumulus.thread_pool.queue.size"
         @JvmField
         val CONF_THREAD_POOL_MAX_SIZE = "kumulus.thread_pool.max_size"
         @JvmField
@@ -229,7 +236,7 @@ class KumulusTopology(
     fun stop() {
         synchronized(stopLock) {
             if (shutDownHook.count > 0) {
-                logger.info("Max pool size: ${boltExecutionPool.poolSize}")
+                logger.info("Max pool size: ${boltExecutionPool.largestPoolSize}")
                 logger.info { "Deactivating all spouts" }
                 components.filter { it is KumulusSpout }.forEach {
                     it.isReady.set(false)

@@ -16,21 +16,19 @@ import org.apache.storm.tuple.Fields
 import org.apache.storm.tuple.Tuple
 import org.junit.Test
 import org.oryx.kumulus.KumulusStormTransformer
-import org.oryx.kumulus.KumulusTopology
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.atomic.AtomicLong
-
-private val logger = KotlinLogging.logger {}
-
-val LOG_PERCENTILES = arrayOf(5.0, 25.0, 50.0, 75.0, 90.0, 95.0, 98.0, 99.0, 99.9, 99.99)
 
 internal class KumulusStormTransformerTest {
     companion object {
         @JvmStatic
         val finish = CountDownLatch(1)
-        var start = AtomicLong(0)
-        val TOTAL_ITERATIONS = 100000
-        val SINK_BOLT_NAME = "bolt4"
+
+        private val logger = KotlinLogging.logger {}
+        private var start = AtomicLong(0)
+        private val TOTAL_ITERATIONS = 100000
+        private val SINK_BOLT_NAME = "bolt4"
+        private val LOG_PERCENTILES = arrayOf(5.0, 25.0, 50.0, 75.0, 90.0, 95.0, 98.0, 99.0, 99.9, 99.99)
     }
 
     @Test
@@ -98,16 +96,23 @@ internal class KumulusStormTransformerTest {
         val unanchoringBolt = object : IRichBolt {
             lateinit var collector: OutputCollector
 
+            var thisTaskIndex : Int = 0
+            var lastIndex : Int = 0
+
             override fun prepare(stormConf: MutableMap<Any?, Any?>?, context: TopologyContext?, collector: OutputCollector?) {
                 this.collector = collector!!
+                this.thisTaskIndex = context!!.thisTaskIndex
             }
 
             override fun execute(input: Tuple?) {
                 try {
                     if (input!!.sourceStreamId == Constants.SYSTEM_TICK_STREAM_ID) {
-                        logger.info { "Got tick tuple" }
+                        if (thisTaskIndex == 0) {
+                            logger.info { "Got tick tuple (last seen index $lastIndex)" }
+                        }
                         return
                     }
+                    lastIndex = input.getValueByField("index") as Int
                     collector.emit(input.values)
                 } finally {
                     collector.ack(input)
@@ -144,13 +149,13 @@ internal class KumulusStormTransformerTest {
 
         val topology = builder.createTopology()!!
 
-        config.set(Config.TOPOLOGY_DISRUPTOR_BATCH_SIZE, 1)
-        config.set(Config.TOPOLOGY_DISRUPTOR_WAIT_TIMEOUT_MILLIS, 0)
-        config.set(Config.TOPOLOGY_DISRUPTOR_BATCH_TIMEOUT_MILLIS, 1)
-        config.set(Config.STORM_CLUSTER_MODE, "local")
-        config.set(Config.TOPOLOGY_MAX_SPOUT_PENDING, maxPending)
-        config.set(KumulusTopology.CONF_THREAD_POOL_CORE_SIZE, 1L)
-        config.set(KumulusTopology.CONF_THREAD_POOL_MAX_SIZE, 20L)
+        config[Config.TOPOLOGY_DISRUPTOR_BATCH_SIZE] = 1
+        config[Config.TOPOLOGY_DISRUPTOR_WAIT_TIMEOUT_MILLIS] = 0
+        config[Config.TOPOLOGY_DISRUPTOR_BATCH_TIMEOUT_MILLIS] = 1
+        config[Config.STORM_CLUSTER_MODE] = "local"
+        config[Config.TOPOLOGY_MAX_SPOUT_PENDING] = maxPending
+
+        config[org.oryx.kumulus.KumulusTopology.CONF_THREAD_POOL_CORE_SIZE] = 1
 
         val kumulusTopology =
                 KumulusStormTransformer.initializeTopology(builder, topology, config, "testtopology")
@@ -168,8 +173,10 @@ internal class KumulusStormTransformerTest {
 
     class TestBasicBolt(private val failing: Boolean = false) : BaseBasicBolt() {
         lateinit var context: TopologyContext
-        lateinit var histogram: Histogram
-        var count = 0
+
+        private lateinit var histogram: Histogram
+
+        private var count = 0
 
         override fun prepare(stormConf: MutableMap<Any?, Any?>?, context: TopologyContext?) {
             this.context = context!!
