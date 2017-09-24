@@ -42,7 +42,6 @@ class KumulusTopology(
     )
     private val stopLock = Any()
     private val mainQueue = LinkedBlockingQueue<KumulusMessage>()
-    private val acker: KumulusAcker
     private val rejectedExecutionHandler = RejectedExecutionHandler { _, _ ->
         logger.error { "Execution was rejected" }
     }
@@ -50,8 +49,10 @@ class KumulusTopology(
     private val started = AtomicBoolean(false)
     private val systemComponent = components.first { it.taskId() == Constants.SYSTEM_TASK_ID.toInt() }
     private val shutDownHook = CountDownLatch(1)
-    private val busyPollSleepTime: Long = config[CONF_BUSY_POLL_SLEEP_TIME] as? Long ?: 5L
     private val shutdownTimeoutSecs = config[CONF_SHUTDOWN_TIMEOUT_SECS] as? Long ?: 10L
+
+    internal val acker: KumulusAcker
+    internal val busyPollSleepTime: Long = config[CONF_BUSY_POLL_SLEEP_TIME] as? Long ?: 5L
 
     var onBusyBoltHook: ((String, Int) -> Unit)? = null
     val onReportErrorHook: ((Throwable?) -> Unit)? = null
@@ -181,51 +182,7 @@ class KumulusTopology(
     fun start(block: Boolean = false) {
         val spouts = components.filter { it is KumulusSpout }.map { it as KumulusSpout }
         spouts.forEach { spout ->
-            Thread {
-                try {
-                    while (true) {
-                        if (spout.isReady.get()) {
-                            spout.activate()
-                            break
-                        }
-                        Thread.sleep(busyPollSleepTime)
-                    }
-                    while (true) {
-                        spout.queue.poll()?.also { ackMessage ->
-                            if (ackMessage.ack) {
-                                spout.ack(ackMessage.spoutMessageId)
-                            } else {
-                                spout.fail(ackMessage.spoutMessageId)
-                            }
-                        }.let {
-                            if (it == null && spout.isReady.get()) {
-                                acker.waitForSpoutAvailability()
-                                if (spout.inUse.compareAndSet(false, true)) {
-                                    try {
-                                        if (spout.isReady.get()) {
-                                            spout.nextTuple()
-                                        }
-                                    } finally {
-                                        spout.inUse.set(false)
-                                    }
-                                }
-                            }
-                        }
-                        if (!spout.isReady.get()) {
-                            spout.deactivate()
-                            return@Thread
-                        }
-                    }
-                } catch (e: Exception) {
-                    logger.error("An uncaught exception in spout '${spout.context.thisComponentId}' has forced a Kumulus shutdown", e)
-                    spout.deactivate()
-                    this.stop()
-                    throw e
-                }
-            }.apply {
-                this.isDaemon = true
-                this.start()
-            }
+            spout.start(this)
         }
         started.set(true)
         if (block) {
