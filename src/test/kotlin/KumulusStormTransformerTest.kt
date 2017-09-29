@@ -17,6 +17,7 @@ import org.apache.storm.tuple.Tuple
 import org.junit.Test
 import org.oryx.kumulus.KumulusStormTransformer
 import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicLong
 
 internal class KumulusStormTransformerTest {
@@ -115,7 +116,7 @@ internal class KumulusStormTransformerTest {
                     lastIndex = input.getValueByField("index") as Int
                     collector.emit(input.values)
                 } finally {
-                    collector.ack(input)
+                    // collector.ack(input)
                 }
             }
 
@@ -154,13 +155,14 @@ internal class KumulusStormTransformerTest {
         config[Config.TOPOLOGY_DISRUPTOR_BATCH_TIMEOUT_MILLIS] = 1
         config[Config.STORM_CLUSTER_MODE] = "local"
         config[Config.TOPOLOGY_MAX_SPOUT_PENDING] = maxPending
+        config[Config.TOPOLOGY_MESSAGE_TIMEOUT_SECS] = 1
 
         config[org.oryx.kumulus.KumulusTopology.CONF_THREAD_POOL_CORE_SIZE] = 1
 
         val kumulusTopology =
                 KumulusStormTransformer.initializeTopology(builder, topology, config, "testtopology")
         kumulusTopology.prepare()
-        kumulusTopology.start()
+        kumulusTopology.start(10, TimeUnit.SECONDS)
         finish.await()
 
         logger.info { "Done, took: ${System.currentTimeMillis() - start.get()}ms" }

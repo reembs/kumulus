@@ -7,6 +7,8 @@ import org.oryx.kumulus.component.KumulusComponent
 import org.oryx.kumulus.component.KumulusSpout
 import org.oryx.kumulus.component.TupleImpl
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.ScheduledThreadPoolExecutor
+import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicLong
 
@@ -14,7 +16,7 @@ class KumulusAcker(
         private val emitter: KumulusEmitter,
         private val maxSpoutPending: Long,
         private val allowExtraAcking: Boolean,
-        private val busyPollSleep: Long
+        private val messageTimeoutMillis: Long
 ) {
     companion object {
         private val logger = KotlinLogging.logger {}
@@ -24,6 +26,7 @@ class KumulusAcker(
     private val waitObject = Object()
     private val currentPending = AtomicLong(0)
     private val completeLock = Any()
+    private val timeoutExecutor = ScheduledThreadPoolExecutor(1)
 
     init {
         assert(maxSpoutPending >= 0)
@@ -34,17 +37,28 @@ class KumulusAcker(
         if (messageId == null) {
             notifySpout(component, messageId, true)
         } else {
-            synchronized(completeLock) {
-                val messageState = MessageState(component)
-                assert(state[messageId] == null) {
-                    "messageId $messageId is currently being processes. Duplicate IDs are not allowed"
+            MessageState(component).let { messageState ->
+                synchronized(completeLock) {
+                    assert(state[messageId] == null) {
+                        "messageId $messageId is currently being processes. Duplicate IDs are not allowed"
+                    }
+                    state[messageId] = messageState
                 }
-                state[messageId] = messageState
-            }
-            val currentPending = currentPending.incrementAndGet()
-            if (maxSpoutPending > 0)
-                assert(currentPending <= maxSpoutPending) { "Exceeding max-spout-pending" }
 
+                if (messageTimeoutMillis > 0) {
+                    timeoutExecutor.schedule({
+                        if (state[messageId] == messageState) {
+                            messageState.pendingTasks.map { it.second }
+                            messageState.ack.compareAndSet(true, false)
+                            forceComplete(messageId)
+                        }
+                    }, messageTimeoutMillis, TimeUnit.MILLISECONDS)
+                }
+
+                val currentPending = currentPending.incrementAndGet()
+                if (maxSpoutPending > 0)
+                    assert(currentPending <= maxSpoutPending) { "Exceeding max-spout-pending" }
+            }
         }
     }
 
@@ -107,6 +121,17 @@ class KumulusAcker(
 
     fun getPendingCount(): Long {
         return this.currentPending.get()
+    }
+
+    private fun forceComplete(spoutMessageId: Any) {
+        state[spoutMessageId]?.let { messageState ->
+            synchronized(completeLock) {
+                state.remove(spoutMessageId)
+            }?.let {
+                notifySpout(messageState.spout, spoutMessageId, messageState.ack.get())
+                decrementPending()
+            }
+        }
     }
 
     private fun checkComplete(messageState: MessageState, component: KumulusComponent, input: Tuple?) {
