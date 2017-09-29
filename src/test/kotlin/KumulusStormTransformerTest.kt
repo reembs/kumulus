@@ -116,7 +116,7 @@ internal class KumulusStormTransformerTest {
                     lastIndex = input.getValueByField("index") as Int
                     collector.emit(input.values)
                 } finally {
-                    // collector.ack(input)
+                    collector.ack(input)
                 }
             }
 
