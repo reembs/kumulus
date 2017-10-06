@@ -5,4 +5,4 @@ env:
 script:
   - mvn clean package
 after_success:
-  - if [ "$TRAVIS_BRANCH" == "master" ]; then mvn -DskipTests deploy; fi
+  - if [ "$TRAVIS_TAG" == v* ]; then mvn -DskipTests deploy; fi
