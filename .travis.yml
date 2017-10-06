@@ -1,3 +1,5 @@
 language: java
 sudo: false
+env:
+  - KUMULUS_BUILD=${TRAVIS_BUILD_NUMBER}
 script: mvn clean package

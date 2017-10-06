@@ -7,7 +7,7 @@
 
     <groupId>org.oryx.kumulus</groupId>
     <artifactId>kumulus</artifactId>
-    <version>0.1.10</version>
+    <version>0.2.${env.KUMULUS_BUILD}</version>
 
     <licenses>
         <license>
