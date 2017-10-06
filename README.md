@@ -1,3 +1,5 @@
+![Build Status](https://travis-ci.org/reembs/kumulus.svg?branch=master "Build Status")
+
 # kumulus
 A drop-in, non-distributed, replacement for Storm in Kotlin aimed for low latency requirements
 
