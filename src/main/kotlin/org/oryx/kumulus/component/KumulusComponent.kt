@@ -13,6 +13,7 @@ import org.oryx.kumulus.grouping.AllGrouping
 import org.oryx.kumulus.grouping.FieldsGrouping
 import java.io.Serializable
 import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicLong
 
 abstract class KumulusComponent(
         protected val config: Map<String, Any>,
@@ -22,6 +23,8 @@ abstract class KumulusComponent(
     val isReady = AtomicBoolean(false)
 
     lateinit var groupingStateMap: Map<String, Map<String, CustomStreamGrouping>>
+
+    val waitStart = AtomicLong(0)
 
     fun name(): String {
         return context.thisComponentId

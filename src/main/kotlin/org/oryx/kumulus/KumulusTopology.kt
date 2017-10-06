@@ -5,6 +5,7 @@ import org.apache.storm.Config
 import org.apache.storm.Constants
 import org.apache.storm.generated.GlobalStreamId
 import org.apache.storm.generated.Grouping
+import org.apache.storm.shade.com.google.common.collect.Iterables
 import org.oryx.kumulus.collector.KumulusBoltCollector
 import org.oryx.kumulus.collector.KumulusSpoutCollector
 import org.oryx.kumulus.component.*
@@ -54,7 +55,7 @@ class KumulusTopology(
     internal val acker: KumulusAcker
     internal val busyPollSleepTime: Long = config[CONF_BUSY_POLL_SLEEP_TIME] as? Long ?: 5L
 
-    var onBusyBoltHook: ((String, Int) -> Unit)? = null
+    var onBusyBoltHook: ((String, Int, Long) -> Unit)? = null
     val onReportErrorHook: ((Throwable?) -> Unit)? = null
 
     init {
@@ -63,7 +64,7 @@ class KumulusTopology(
                 this,
                 maxSpoutPending,
                 config[CONF_EXTRA_ACKING] as? Boolean ?: false,
-                busyPollSleepTime
+                (config[Config.TOPOLOGY_MESSAGE_TIMEOUT_SECS] as? Long)?.times(1000) ?: 0L
         )
     }
 
@@ -135,6 +136,12 @@ class KumulusTopology(
                 mainQueue.poll(1, TimeUnit.SECONDS)?.let { message ->
                     val c = message.component
                     if (c.inUse.compareAndSet(false, true)) {
+                        onBusyBoltHook?.let {
+                            val waitNanos = c.waitStart.getAndSet(0)
+                            if (waitNanos > 0) {
+                                it(c.context.thisComponentId, c.taskId(), waitNanos)
+                            }
+                        }
                         boltExecutionPool.execute({
                             try {
                                 when (message) {
@@ -166,7 +173,7 @@ class KumulusTopology(
                         })
                     } else {
                         logger.trace { "Component ${c.context.thisComponentId}/${c.taskId()} is currently busy" }
-                        onBusyBoltHook?.let { it(c.context.thisComponentId, c.taskId()) }
+                        c.waitStart.compareAndSet(0, System.nanoTime())
                         mainQueue.add(message)
                     }
                 }
@@ -177,6 +184,19 @@ class KumulusTopology(
             this.isDaemon = true
             this.start()
         }
+    }
+
+    fun start(timeout: Long, unit: TimeUnit, block: Boolean = false) {
+        tickExecutor.schedule({
+            this.components.filter { !it.isReady.get() }.let {
+                if (it.isNotEmpty()) {
+                    logger.error { "Following components did not finish their prepare process in a timely fashion: ${Iterables.toString(it)}" }
+                    this.stop()
+                }
+            }
+        }, timeout, unit)
+
+        return start(block)
     }
 
     fun start(block: Boolean = false) {
