@@ -1,8 +1,7 @@
 language: java
 sudo: false
-env:
-  - KUMULUS_BUILD=${TRAVIS_BUILD_NUMBER}
 script:
   - mvn clean package
 after_success:
-  - if [ "$TRAVIS_TAG" == v* ]; then mvn -DskipTests deploy; fi
+  - echo TRAVIS_TAG=$TRAVIS_TAG
+  - if [[ "$TRAVIS_TAG" == v* ]]; then mvn -DskipTests deploy; fi
