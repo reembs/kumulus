@@ -45,7 +45,7 @@ class KumulusTopology(
     }
     private val tickExecutor = ScheduledThreadPoolExecutor(1, rejectedExecutionHandler)
     private val started = AtomicBoolean(false)
-    private val systemComponent = components.first { it.taskId() == Constants.SYSTEM_TASK_ID.toInt() }
+    private val systemComponent = components.first { it.taskId == Constants.SYSTEM_TASK_ID.toInt() }
     private val shutDownHook = CountDownLatch(1)
     private val shutdownTimeoutSecs = config[CONF_SHUTDOWN_TIMEOUT_SECS] as? Long ?: 10L
 
@@ -132,7 +132,7 @@ class KumulusTopology(
                         onBusyBoltHook?.let {
                             val waitNanos = c.waitStart.getAndSet(0)
                             if (waitNanos > 0) {
-                                it(c.context.thisComponentId, c.taskId(), System.nanoTime() - waitNanos)
+                                it(c.componentId, c.taskId, System.nanoTime() - waitNanos)
                             }
                         }
                         boltExecutionPool.execute({
@@ -147,15 +147,14 @@ class KumulusTopology(
                                                 (c as KumulusBolt).prepare(message.collector as KumulusBoltCollector)
                                         } finally {
                                             onBoltPrepareFinishHook?.let {
-                                                it(c.context.thisComponentId,
-                                                        c.taskId(),System.nanoTime() - c.prepareStart.get())
+                                                it(c.componentId, c.taskId,System.nanoTime() - c.prepareStart.get())
                                             }
                                         }
                                     }
                                     is ExecuteMessage -> {
                                         assert(!c.isSpout()) {
                                             logger.error {
-                                                "Execute message got to a spout '${c.context.thisComponentId}', " +
+                                                "Execute message got to a spout '${c.componentId}', " +
                                                         "this shouldn't happen."
                                             }
                                         }
@@ -165,7 +164,7 @@ class KumulusTopology(
                                         throw UnsupportedOperationException("Operation of type ${c.javaClass.canonicalName} is unsupported")
                                 }
                             } catch (e: Exception) {
-                                logger.error("An uncaught exception in component '${c.context.thisComponentId}' has forced a Kumulus shutdown", e)
+                                logger.error("An uncaught exception in component '${c.componentId}' has forced a Kumulus shutdown", e)
                                 this.stop()
                                 throw e
                             } finally {
@@ -173,7 +172,7 @@ class KumulusTopology(
                             }
                         })
                     } else {
-                        logger.trace { "Component ${c.context.thisComponentId}/${c.taskId()} is currently busy" }
+                        logger.trace { "Component ${c.componentId}/${c.taskId} is currently busy" }
                         if (c.isReady.get()) {
                             c.waitStart.compareAndSet(0, System.nanoTime())
                         }
@@ -233,7 +232,7 @@ class KumulusTopology(
 
     // KumulusEmitter impl
     override fun getDestinations(tasks: List<Int>): List<KumulusComponent> {
-        return this.components.filter { tasks.contains(it.taskId()) }
+        return this.components.filter { tasks.contains(it.taskId) }
     }
 
     // KumulusEmitter impl

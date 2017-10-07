@@ -21,13 +21,13 @@ class KumulusBolt(
     private val bolt : IRichBolt = componentInstance
 
     fun prepare(collector: KumulusBoltCollector) {
-        logger.info { "Created bolt '${context.thisComponentId}' with taskId ${context.thisTaskId} (index: ${context.thisTaskIndex}). Object hashcode: ${this.hashCode()}" }
+        logger.info { "Created bolt '$componentId' with taskId $taskId (index: ${context.thisTaskIndex}). Object hashcode: ${this.hashCode()}" }
         bolt.prepare(config, context, OutputCollector(collector))
         super.prepare()
     }
 
     fun execute(tuple: KumulusTuple) {
-        logger.debug { "Executing bolt '${context.thisComponentId}' with taskId ${context.thisTaskId} (index: ${context.thisTaskIndex}). Input: ${tuple.kTuple}" }
+        logger.debug { "Executing bolt '$componentId' with taskId $taskId (index: ${context.thisTaskIndex}). Input: ${tuple.kTuple}" }
         bolt.execute(tuple.kTuple)
     }
 }

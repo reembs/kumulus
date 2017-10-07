@@ -27,13 +27,8 @@ abstract class KumulusComponent(
     val waitStart = AtomicLong(0)
     val prepareStart = AtomicLong(0)
 
-    fun name(): String {
-        return context.thisComponentId
-    }
-
-    fun taskId(): Int {
-        return context.thisTaskId
-    }
+    val componentId = context.thisComponentId!!
+    val taskId = context.thisTaskId
 
     fun prepare() {
         val groupingStateMap: MutableMap<String, MutableMap<String, CustomStreamGrouping>> = mutableMapOf()
@@ -62,7 +57,7 @@ abstract class KumulusComponent(
     }
 
     override fun toString(): String {
-        return "[Component ${context.thisComponentId}->${context.thisTaskId}]"
+        return "[Component $componentId->$taskId]"
     }
 }
 

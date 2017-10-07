@@ -26,7 +26,7 @@ class KumulusSpout(
     val queue = LinkedBlockingQueue<AckMessage>()
 
     fun prepare(collector: KumulusSpoutCollector) {
-        logger.debug { "Created spout '${context.thisComponentId}' with taskId ${context.thisTaskId} (index: ${context.thisTaskIndex}). Object hashcode: ${this.hashCode()}" }
+        logger.debug { "Created spout '$componentId' with taskId $taskId (index: ${context.thisTaskIndex}). Object hashcode: ${this.hashCode()}" }
         spout.open(config, context, SpoutOutputCollector(collector))
         super.prepare()
     }
@@ -76,7 +76,7 @@ class KumulusSpout(
                     }
                 }
             } catch (e: Exception) {
-                logger.error("An uncaught exception in spout '${context.thisComponentId}' has forced a Kumulus shutdown", e)
+                logger.error("An uncaught exception in spout '$componentId' (taskId: $taskId) has forced a Kumulus shutdown", e)
                 spout.deactivate()
                 topology.stop()
                 throw e
