@@ -174,7 +174,7 @@ internal class KumulusStormTransformerTest {
             logger.info { "Component $comp [taskId: $task] took ${tookMs}ms to prepare" }
         }
 
-        kumulusTopology.onBusyBoltHook = { comp: String, task: Int, busyNanos: Long ->
+        kumulusTopology.onBusyBoltHook = { comp, _, busyNanos, _ ->
             busyTimeMap.compute(comp, { _, v->
                 when (v) {
                     null -> busyNanos

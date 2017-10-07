@@ -52,7 +52,7 @@ class KumulusTopology(
     internal val acker: KumulusAcker
     internal val busyPollSleepTime: Long = config[CONF_BUSY_POLL_SLEEP_TIME] as? Long ?: 5L
 
-    var onBusyBoltHook: ((String, Int, Long) -> Unit)? = null
+    var onBusyBoltHook: ((String, Int, Long, Any?) -> Unit)? = null
     var onBoltPrepareFinishHook: ((String, Int, Long) -> Unit)? = null
     var onReportErrorHook: ((String, Int, Throwable) -> Unit)? = null
 
@@ -129,12 +129,6 @@ class KumulusTopology(
                 mainQueue.poll(1, TimeUnit.SECONDS)?.let { message ->
                     val c = message.component
                     if (c.inUse.compareAndSet(false, true)) {
-                        onBusyBoltHook?.let {
-                            val waitNanos = c.waitStart.getAndSet(0)
-                            if (waitNanos > 0) {
-                                it(c.componentId, c.taskId, System.nanoTime() - waitNanos)
-                            }
-                        }
                         boltExecutionPool.execute({
                             try {
                                 when (message) {
@@ -158,6 +152,17 @@ class KumulusTopology(
                                                         "this shouldn't happen."
                                             }
                                         }
+                                        onBusyBoltHook?.let {
+                                            val waitNanos = c.waitStart.getAndSet(0)
+                                            if (waitNanos > 0) {
+                                                it(
+                                                        c.componentId,
+                                                        c.taskId,
+                                                        System.nanoTime() - waitNanos,
+                                                        message.tuple.spoutMessageId
+                                                )
+                                            }
+                                        }
                                         (c as KumulusBolt).execute(message.tuple)
                                     }
                                     else ->
@@ -173,7 +178,7 @@ class KumulusTopology(
                         })
                     } else {
                         logger.trace { "Component ${c.componentId}/${c.taskId} is currently busy" }
-                        if (c.isReady.get()) {
+                        if (onBusyBoltHook != null && message is ExecuteMessage) {
                             c.waitStart.compareAndSet(0, System.nanoTime())
                         }
                         mainQueue.add(message)
