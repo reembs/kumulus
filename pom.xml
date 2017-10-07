@@ -223,10 +223,5 @@
             <name>AWS Release Repository</name>
             <url>s3://xyr.io/releases</url>
         </repository>
-        <snapshotRepository>
-            <id>maven-s3-snapshot-repo</id>
-            <name>AWS Snapshot Repository</name>
-            <url>s3://xyr.io/snapshots</url>
-        </snapshotRepository>
     </distributionManagement>
 </project>
