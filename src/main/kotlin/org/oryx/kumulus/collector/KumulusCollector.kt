@@ -26,9 +26,9 @@ abstract class KumulusCollector<T: KumulusComponent>(
         val reportError = error ?:
                 Exception("reportError was called with null error. An error in component might be shadowed")
         errorHandler?.let {
-            it(this.component.context.thisComponentId, this.component.context.thisTaskId, reportError)
+            it(this.component.componentId, this.component.taskId, reportError)
         } ?: logger.error("An error was reported from bolt " +
-                "${component.context.thisComponentId}/${component.context.thisTaskId}", reportError)
+                "${component.componentId}/${component.taskId}", reportError)
     }
 
     private fun componentEmit(
@@ -42,14 +42,14 @@ abstract class KumulusCollector<T: KumulusComponent>(
 
         component.groupingStateMap[streamId]?.let { streamTargets: Map<String, CustomStreamGrouping> ->
             streamTargets.forEach { _, grouping ->
-                val tasks = grouping.chooseTasks(this.component.taskId(), tuple)
+                val tasks = grouping.chooseTasks(this.component.taskId, tuple)
 
                 val emitToInstance= emitter.getDestinations(tasks)
 
                 // First, expand all trees
                 executes += emitToInstance.map { destComponent ->
                     val kumulusTuple = KumulusTuple(component, streamId ?: Utils.DEFAULT_STREAM_ID, tuple, messageId)
-                    acker.expandTrees(component, destComponent.taskId(), kumulusTuple)
+                    acker.expandTrees(component, destComponent.taskId, kumulusTuple)
                     Pair(destComponent, kumulusTuple)
                 }.toList()
 
@@ -81,7 +81,7 @@ abstract class KumulusCollector<T: KumulusComponent>(
     }
 
     fun emit(streamId: String?, tuple: MutableList<Any>, messageId: Any?): MutableList<Int> {
-        assert(component is KumulusSpout) { "Bolts wrong emit method called for '${component.context.thisComponentId}'" }
+        assert(component is KumulusSpout) { "Bolts wrong emit method called for ${component.componentId}/${component.taskId}" }
         acker.startTree(component as KumulusSpout, messageId)
         return componentEmit(streamId, tuple, messageId!!)
     }

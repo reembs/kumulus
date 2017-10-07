@@ -135,7 +135,7 @@ class KumulusAcker(
     }
 
     private fun checkComplete(messageState: MessageState, component: KumulusComponent, input: Tuple?) {
-        val key = Pair(component.taskId(), input)
+        val key = Pair(component.taskId, input)
         (input as TupleImpl).spoutMessageId?.let { spoutMessageId ->
             if (synchronized(completeLock) {
                 assert(messageState.pendingTasks.remove(key)) {
@@ -154,7 +154,7 @@ class KumulusAcker(
                 }}
                 messageState.pendingTasks.isEmpty()
             }) {
-                logger.debug { "[${component.context.thisComponentId}/${component.context.thisTaskId}] " +
+                logger.debug { "[${component.componentId}/${component.taskId}] " +
                             "Finished with messageId $spoutMessageId" }
                 state.remove(spoutMessageId)
                 notifySpout(messageState.spout, spoutMessageId, messageState.ack.get())
