@@ -2,3 +2,4 @@
 logs/
 *.iml
 target/
+dependency-reduced-pom.xml

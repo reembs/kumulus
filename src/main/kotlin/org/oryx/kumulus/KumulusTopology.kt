@@ -56,6 +56,7 @@ class KumulusTopology(
     internal val busyPollSleepTime: Long = config[CONF_BUSY_POLL_SLEEP_TIME] as? Long ?: 5L
 
     var onBusyBoltHook: ((String, Int, Long) -> Unit)? = null
+    var onBoltPrepareFinishHook: ((String, Int, Long) -> Unit)? = null
     val onReportErrorHook: ((Throwable?) -> Unit)? = null
 
     init {
@@ -146,10 +147,18 @@ class KumulusTopology(
                             try {
                                 when (message) {
                                     is PrepareMessage<*> -> {
-                                        if (c.isSpout())
-                                            (c as KumulusSpout).prepare(message.collector as KumulusSpoutCollector)
-                                        else
-                                            (c as KumulusBolt).prepare(message.collector as KumulusBoltCollector)
+                                        c.prepareStart.set(System.nanoTime())
+                                        try {
+                                            if (c.isSpout())
+                                                (c as KumulusSpout).prepare(message.collector as KumulusSpoutCollector)
+                                            else
+                                                (c as KumulusBolt).prepare(message.collector as KumulusBoltCollector)
+                                        } finally {
+                                            onBoltPrepareFinishHook?.let {
+                                                it(c.context.thisComponentId,
+                                                        c.taskId(),System.nanoTime() - c.prepareStart.get())
+                                            }
+                                        }
                                     }
                                     is ExecuteMessage -> {
                                         assert(!c.isSpout()) {
@@ -173,7 +182,9 @@ class KumulusTopology(
                         })
                     } else {
                         logger.trace { "Component ${c.context.thisComponentId}/${c.taskId()} is currently busy" }
-                        c.waitStart.compareAndSet(0, System.nanoTime())
+                        if (c.isReady.get()) {
+                            c.waitStart.compareAndSet(0, System.nanoTime())
+                        }
                         mainQueue.add(message)
                     }
                 }
