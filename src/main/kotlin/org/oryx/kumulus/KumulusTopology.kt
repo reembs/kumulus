@@ -3,8 +3,6 @@ package org.oryx.kumulus
 import mu.KotlinLogging
 import org.apache.storm.Config
 import org.apache.storm.Constants
-import org.apache.storm.generated.GlobalStreamId
-import org.apache.storm.generated.Grouping
 import org.apache.storm.shade.com.google.common.collect.Iterables
 import org.oryx.kumulus.collector.KumulusBoltCollector
 import org.oryx.kumulus.collector.KumulusSpoutCollector
@@ -14,7 +12,6 @@ import java.util.concurrent.atomic.AtomicBoolean
 
 class KumulusTopology(
         private val components: List<KumulusComponent>,
-        private val componentInputs: MutableMap<Pair<String, GlobalStreamId>, Grouping>,
         val config: Map<String, Any>
 ) : KumulusEmitter {
     private val maxSpoutPending: Long = config[Config.TOPOLOGY_MAX_SPOUT_PENDING] as Long? ?: 0L
@@ -57,7 +54,7 @@ class KumulusTopology(
 
     var onBusyBoltHook: ((String, Int, Long) -> Unit)? = null
     var onBoltPrepareFinishHook: ((String, Int, Long) -> Unit)? = null
-    val onReportErrorHook: ((Throwable?) -> Unit)? = null
+    var onReportErrorHook: ((String, Int, Throwable) -> Unit)? = null
 
     init {
         this.boltExecutionPool.prestartAllCoreThreads()
@@ -92,18 +89,13 @@ class KumulusTopology(
         startQueuePolling()
 
         components.forEach { component ->
-            val componentRegisteredOutputs: List<Pair<String, Pair<String, Grouping>>> =
-                    componentInputs
-                            .filter { it.key.second._componentId == component.name() }
-                            .map { Pair(it.key.second._streamId, Pair(it.key.first, it.value)) }
-
             mainQueue.add(when (component) {
                 is KumulusSpout ->
                     SpoutPrepareMessage(
-                            component, KumulusSpoutCollector(component, componentRegisteredOutputs, this, acker, onReportErrorHook))
+                            component, KumulusSpoutCollector(component, this, acker, onReportErrorHook))
                 is KumulusBolt -> {
                     BoltPrepareMessage(
-                            component, KumulusBoltCollector(component, componentRegisteredOutputs, this, acker, onReportErrorHook))
+                            component, KumulusBoltCollector(component, this, acker, onReportErrorHook))
                 }
                 else ->
                     throw UnsupportedOperationException()

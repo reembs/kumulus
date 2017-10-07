@@ -1,7 +1,6 @@
 package org.oryx.kumulus.collector
 
 import mu.KotlinLogging
-import org.apache.storm.generated.Grouping
 import org.apache.storm.grouping.CustomStreamGrouping
 import org.apache.storm.tuple.Tuple
 import org.apache.storm.utils.Utils
@@ -13,23 +12,23 @@ import org.oryx.kumulus.component.KumulusSpout
 import org.oryx.kumulus.component.TupleImpl
 
 abstract class KumulusCollector<T: KumulusComponent>(
-        protected val component : KumulusComponent,
-        private val componentRegisteredOutputs: List<Pair<String, Pair<String, Grouping>>>,
+        protected val component: KumulusComponent,
         private val emitter: KumulusEmitter,
-        protected val acker : KumulusAcker,
-        private val errorHandler : ((Throwable?) -> Unit)? = null
+        protected val acker: KumulusAcker,
+        private val errorHandler: ((String, Int, Throwable) -> Unit)? = null
 ) {
     companion object {
         private val logger = KotlinLogging.logger {}
     }
 
+    // Impl. org.apache.storm.task.IOutputCollector
     fun reportError(error: Throwable?) {
-        if (errorHandler == null) {
-            logger.error("An error was reported from bolt " +
-                    "${component.context.thisComponentId}/${component.context.thisTaskId}", error)
-        } else {
-            errorHandler.invoke(error)
-        }
+        val reportError = error ?:
+                Exception("reportError was called with null error. An error in component might be shadowed")
+        errorHandler?.let {
+            it(this.component.context.thisComponentId, this.component.context.thisTaskId, reportError)
+        } ?: logger.error("An error was reported from bolt " +
+                "${component.context.thisComponentId}/${component.context.thisTaskId}", reportError)
     }
 
     private fun componentEmit(
