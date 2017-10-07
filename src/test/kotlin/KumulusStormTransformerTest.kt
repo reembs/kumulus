@@ -165,6 +165,10 @@ internal class KumulusStormTransformerTest {
 
         val busyTimeMap = ConcurrentHashMap<String, Long>()
 
+        kumulusTopology.onReportErrorHook = { errBolt, errTaskId, throwable ->
+            logger.error("Error in component $errBolt/$errTaskId", throwable)
+        }
+
         kumulusTopology.onBoltPrepareFinishHook = { comp: String, task: Int, prepareTookNanos: Long ->
             val tookMs = prepareTookNanos.toDouble() / 1000 / 1000
             logger.info { "Component $comp [taskId: $task] took ${tookMs}ms to prepare" }

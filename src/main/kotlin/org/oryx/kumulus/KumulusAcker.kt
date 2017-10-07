@@ -182,11 +182,11 @@ class KumulusAcker(
             currentPending.decrementAndGet()
         }
     }
+
     inner class MessageState(
             val spout: KumulusSpout
     ) {
         val pendingTasks = ConcurrentHashSet<Pair<Int, Tuple>>()
         var ack = AtomicBoolean(true)
-
     }
 }

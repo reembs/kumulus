@@ -1,7 +1,6 @@
 package org.oryx.kumulus.collector
 
 import mu.KotlinLogging
-import org.apache.storm.generated.Grouping
 import org.apache.storm.task.IOutputCollector
 import org.apache.storm.tuple.Tuple
 import org.oryx.kumulus.KumulusAcker
@@ -11,13 +10,11 @@ import org.oryx.kumulus.component.KumulusComponent
 
 class KumulusBoltCollector(
         component: KumulusComponent,
-        componentRegisteredOutputs: List<Pair<String, Pair<String, Grouping>>>,
         emitter: KumulusEmitter,
-        acker : KumulusAcker,
-        errorHandler : ((Throwable?) -> Unit)?
+        acker: KumulusAcker,
+        errorHandler: ((String, Int, Throwable) -> Unit)?
 ) : KumulusCollector<KumulusBolt>(
         component,
-        componentRegisteredOutputs,
         emitter,
         acker,
         errorHandler
