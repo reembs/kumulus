@@ -9,7 +9,7 @@ class KumulusTuple(
         component: KumulusComponent,
         streamId: String,
         tuple: List<Any>,
-        val messageId: Any?
+        messageId: Any?
 ) {
     val spoutMessageId = messageId
 
