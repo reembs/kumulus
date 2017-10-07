@@ -16,6 +16,7 @@ import org.apache.storm.tuple.Fields
 import org.apache.storm.tuple.Tuple
 import org.junit.Test
 import org.oryx.kumulus.KumulusStormTransformer
+import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicLong
@@ -161,12 +162,33 @@ internal class KumulusStormTransformerTest {
 
         val kumulusTopology =
                 KumulusStormTransformer.initializeTopology(builder, topology, config, "testtopology")
+
+        val busyTimeMap = ConcurrentHashMap<String, Long>()
+
+        kumulusTopology.onBusyBoltHook = { comp: String, task: Int, busyNanos: Long ->
+            busyTimeMap.compute(comp, { _, v->
+                when (v) {
+                    null -> busyNanos
+                    else -> busyNanos + v
+                }
+            })
+        }
+
         kumulusTopology.prepare()
         kumulusTopology.start(10, TimeUnit.SECONDS)
         finish.await()
 
         logger.info { "Done, took: ${System.currentTimeMillis() - start.get()}ms" }
         kumulusTopology.stop()
+
+        busyTimeMap.map { (bolt, waitNanos) ->
+            Pair(bolt, waitNanos)
+        }.sortedBy {
+            it.second
+        }.reversed().forEach { (bolt, waitNanos) ->
+            val waitMillis = waitNanos.toDouble() / 1000 / 1000
+            println("Component $bolt waited a total of ${waitMillis}ms during the test execution")
+        }
 
 //        val cluster = LocalCluster()
 //        cluster.submitTopology("testtopology", config, topology)

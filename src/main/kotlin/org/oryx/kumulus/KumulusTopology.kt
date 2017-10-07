@@ -139,7 +139,7 @@ class KumulusTopology(
                         onBusyBoltHook?.let {
                             val waitNanos = c.waitStart.getAndSet(0)
                             if (waitNanos > 0) {
-                                it(c.context.thisComponentId, c.taskId(), waitNanos)
+                                it(c.context.thisComponentId, c.taskId(), System.nanoTime() - waitNanos)
                             }
                         }
                         boltExecutionPool.execute({
