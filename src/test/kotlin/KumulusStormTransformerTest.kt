@@ -16,6 +16,8 @@ import org.apache.storm.tuple.Fields
 import org.apache.storm.tuple.Tuple
 import org.junit.Test
 import org.oryx.kumulus.KumulusStormTransformer
+import java.io.FileOutputStream
+import java.io.PrintWriter
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
@@ -181,6 +183,15 @@ internal class KumulusStormTransformerTest {
                     else -> busyNanos + v
                 }
             })
+        }
+
+        System.getenv("GRAPH_OUT_PATH")?.let { path ->
+            val graph = kumulusTopology.getGraph()
+            FileOutputStream(path, false).use {
+                PrintWriter(it).use {
+                    it.print(graph.toJson())
+                }
+            }
         }
 
         kumulusTopology.prepare()
