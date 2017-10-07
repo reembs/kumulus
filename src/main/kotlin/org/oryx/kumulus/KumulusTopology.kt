@@ -7,6 +7,7 @@ import org.apache.storm.shade.com.google.common.collect.Iterables
 import org.oryx.kumulus.collector.KumulusBoltCollector
 import org.oryx.kumulus.collector.KumulusSpoutCollector
 import org.oryx.kumulus.component.*
+import org.oryx.kumulus.graph.*
 import java.util.concurrent.*
 import java.util.concurrent.atomic.AtomicBoolean
 
@@ -248,5 +249,16 @@ class KumulusTopology(
     // KumulusEmitter impl
     override fun completeMessageProcessing(spout: KumulusSpout, spoutMessageId: Any?, ack: Boolean) {
         spout.queue.add(AckMessage(spout, spoutMessageId, ack))
+    }
+
+    fun getGraph() : ComponentGraph<GraphNode, GraphEdge<GraphNode>> {
+        return getGraph(defaultNodeFactory, defaultEdgeFactory)
+    }
+
+    fun <N: GraphNode, E: GraphEdge<N>> getGraph(
+            nodeFactory : ComponentGraphNodeFactory<N>,
+            edgeFactory : ComponentGraphEdgeFactory<N, E>
+    ) : ComponentGraph<GraphNode, GraphEdge<GraphNode>> {
+        return ComponentGraph(this.components, nodeFactory, edgeFactory)
     }
 }
