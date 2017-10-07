@@ -165,6 +165,11 @@ internal class KumulusStormTransformerTest {
 
         val busyTimeMap = ConcurrentHashMap<String, Long>()
 
+        kumulusTopology.onBoltPrepareFinishHook = { comp: String, task: Int, prepareTookNanos: Long ->
+            val tookMs = prepareTookNanos.toDouble() / 1000 / 1000
+            logger.info { "Component $comp [taskId: $task] took ${tookMs}ms to prepare" }
+        }
+
         kumulusTopology.onBusyBoltHook = { comp: String, task: Int, busyNanos: Long ->
             busyTimeMap.compute(comp, { _, v->
                 when (v) {

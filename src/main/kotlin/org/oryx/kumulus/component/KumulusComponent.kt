@@ -25,6 +25,7 @@ abstract class KumulusComponent(
     lateinit var groupingStateMap: Map<String, Map<String, CustomStreamGrouping>>
 
     val waitStart = AtomicLong(0)
+    val prepareStart = AtomicLong(0)
 
     fun name(): String {
         return context.thisComponentId
