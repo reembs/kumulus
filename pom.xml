@@ -7,7 +7,7 @@
 
     <groupId>org.oryx.kumulus</groupId>
     <artifactId>kumulus</artifactId>
-    <version>0.1.16</version>
+    <version>0.1.17</version>
 
     <licenses>
         <license>
@@ -55,18 +55,6 @@
             <version>1.4.6</version>
         </dependency>
         <dependency>
-            <groupId>org.apache.logging.log4j</groupId>
-            <artifactId>log4j-api</artifactId>
-            <version>${log4j.version}</version>
-            <scope>compile</scope>
-        </dependency>
-        <dependency>
-            <groupId>org.apache.logging.log4j</groupId>
-            <artifactId>log4j-core</artifactId>
-            <version>${log4j.version}</version>
-            <scope>compile</scope>
-        </dependency>
-        <dependency>
             <groupId>com.fasterxml.jackson.core</groupId>
             <artifactId>jackson-core</artifactId>
             <version>2.9.1</version>
@@ -76,12 +64,6 @@
             <artifactId>jackson-databind</artifactId>
             <version>2.9.1</version>
         </dependency>
-        <!-- dependency>
-            <groupId>org.apache.logging.log4j</groupId>
-            <artifactId>log4j-slf4j-impl</artifactId>
-            <version>${log4j.version}</version>
-            <scope>compile</scope>
-        </dependency -->
         <!-- tests -->
         <dependency>
             <groupId>junit</groupId>
@@ -196,10 +178,36 @@
                                     <exclude>com.esotericsoftware:reflectasm</exclude>
                                     <exclude>org.ow2.asm:asm</exclude>
                                     <exclude>com.esotericsoftware:minlog</exclude>
-				    <exclude>org.objenesis:objenesis</exclude>
-				    <exclude>org.jetbrains:annotations</exclude>
+				                    <exclude>org.objenesis:objenesis</exclude>
+				                    <exclude>org.jetbrains:annotations</exclude>
                                 </excludes>
                             </artifactSet>
+                            <relocations>
+                                <relocation>
+                                    <pattern>com.fasterxml</pattern>
+                                    <shadedPattern>org.oryx.shaded.com.fasterxml</shadedPattern>
+                                </relocation>
+                                <relocation>
+                                    <pattern>mu</pattern>
+                                    <shadedPattern>org.oryx.shaded.mu</shadedPattern>
+                                </relocation>
+                                <relocation>
+                                    <pattern>kotlin</pattern>
+                                    <shadedPattern>org.oryx.shaded.kotlin</shadedPattern>
+                                </relocation>
+                                <relocation>
+                                    <pattern>org.apache.log4j</pattern>
+                                    <shadedPattern>org.oryx.shaded.org.apache.log4j</shadedPattern>
+                                </relocation>
+                                <relocation>
+                                    <pattern>org.apache.logging</pattern>
+                                    <shadedPattern>org.oryx.shaded.org.apache.logging</shadedPattern>
+                                </relocation>
+                                <relocation>
+                                    <pattern>org.slf4j</pattern>
+                                    <shadedPattern>org.oryx.shaded.org.slf4j</shadedPattern>
+                                </relocation>
+                            </relocations>
                         </configuration>
                     </execution>
                 </executions>

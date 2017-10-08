@@ -39,11 +39,11 @@ class ComponentGraph<out N : GraphNode, out E : GraphEdge<N>>(
 
     fun toJson(): String {
         return mapper.writeValueAsString(
-                mapper.createObjectNode()!!.let { resultNode ->
-                    resultNode.withArray("nodes").let {
+                mapper.createObjectNode()!!.apply {
+                    this.withArray("nodes").let {
                         it.addAll(nodeMap.values.map { it.toJson() })
                     }
-                    resultNode.withArray("edges").let {
+                    this.withArray("edges").let {
                         it.addAll(edgeList.map { it.toJson() })
                     }
                 })
