@@ -86,6 +86,26 @@ class KumulusTopology(
         val CONF_SHUTDOWN_TIMEOUT_SECS = "kumulus.shutdown.timeout.secs"
     }
 
+    @Throws(TimeoutException::class)
+    fun prepare(time: Long, unit: TimeUnit) {
+        val start = System.currentTimeMillis()
+
+        this.prepare()
+
+        val allReady = { this.components.all { it.isReady.get() } }
+
+        while (System.currentTimeMillis() < start + unit.toMillis(time)) {
+            if (allReady()) {
+                break
+            }
+            Thread.sleep(busyPollSleepTime)
+        }
+
+        if (!allReady()) {
+            throw TimeoutException()
+        }
+    }
+
     fun prepare() {
         startQueuePolling()
 
@@ -192,19 +212,6 @@ class KumulusTopology(
             this.isDaemon = true
             this.start()
         }
-    }
-
-    fun start(timeout: Long, unit: TimeUnit, block: Boolean = false) {
-        tickExecutor.schedule({
-            this.components.filter { !it.isReady.get() }.let {
-                if (it.isNotEmpty()) {
-                    logger.error { "Following components did not finish their prepare process in a timely fashion: ${Iterables.toString(it)}" }
-                    this.stop()
-                }
-            }
-        }, timeout, unit)
-
-        return start(block)
     }
 
     fun start(block: Boolean = false) {

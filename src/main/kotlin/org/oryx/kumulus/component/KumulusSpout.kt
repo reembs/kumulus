@@ -19,7 +19,8 @@ class KumulusSpout(
         private val logger = KotlinLogging.logger {}
     }
 
-    private val spout: IRichSpout = componentInstance
+    val spout: IRichSpout = componentInstance
+
     private val deactivationLock = Any()
     private val deactivated = AtomicBoolean(false)
 
