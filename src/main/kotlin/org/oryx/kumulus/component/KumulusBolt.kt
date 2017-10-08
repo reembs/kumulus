@@ -18,7 +18,7 @@ class KumulusBolt(
 
     var tickSecs: Number? = null
 
-    private val bolt : IRichBolt = componentInstance
+    val bolt : IRichBolt = componentInstance
 
     fun prepare(collector: KumulusBoltCollector) {
         logger.info { "Created bolt '$componentId' with taskId $taskId (index: ${context.thisTaskIndex}). Object hashcode: ${this.hashCode()}" }

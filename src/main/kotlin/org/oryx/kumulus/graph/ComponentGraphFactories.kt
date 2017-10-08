@@ -22,7 +22,7 @@ interface ComponentGraphNodeFactory<out N: GraphNode> {
 }
 
 
-interface ComponentGraphEdgeFactory<out N: GraphNode, out E: GraphEdge<N>> {
-    fun createEdge(stream : String, src : GraphNode, dest : GraphNode, grouping : Grouping) : E
+interface ComponentGraphEdgeFactory<N: GraphNode, out E: GraphEdge<N>> {
+    fun createEdge(stream : String, src : N, dest : N, grouping : Grouping) : E
 }
 

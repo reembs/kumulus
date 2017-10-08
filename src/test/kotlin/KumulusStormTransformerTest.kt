@@ -194,8 +194,8 @@ internal class KumulusStormTransformerTest {
             }
         }
 
-        kumulusTopology.prepare()
-        kumulusTopology.start(10, TimeUnit.SECONDS)
+        kumulusTopology.prepare(10, TimeUnit.SECONDS)
+        kumulusTopology.start()
         finish.await()
 
         logger.info { "Done, took: ${System.currentTimeMillis() - start.get()}ms" }
