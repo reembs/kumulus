@@ -7,7 +7,7 @@
 
     <groupId>org.oryx.kumulus</groupId>
     <artifactId>kumulus</artifactId>
-    <version>0.1.18</version>
+    <version>0.1.19</version>
 
     <licenses>
         <license>
@@ -34,14 +34,14 @@
         <dependency>
             <groupId>org.jetbrains.kotlin</groupId>
             <artifactId>kotlin-stdlib-jre8</artifactId>
-	    <version>${kotlin.version}</version>
-	    <scope>provided</scope>
+            <version>${kotlin.version}</version>
+            <scope>provided</scope>
         </dependency>
         <dependency>
             <groupId>org.jetbrains.kotlin</groupId>
             <artifactId>kotlin-reflect</artifactId>
-	    <version>${kotlin.version}</version>
-	    <scope>provided</scope>
+            <version>${kotlin.version}</version>
+            <scope>provided</scope>
         </dependency>
         <dependency>
             <groupId>org.apache.storm</groupId>
@@ -58,11 +58,13 @@
             <groupId>com.fasterxml.jackson.core</groupId>
             <artifactId>jackson-core</artifactId>
             <version>2.9.1</version>
+            <scope>provided</scope>
         </dependency>
         <dependency>
             <groupId>com.fasterxml.jackson.core</groupId>
             <artifactId>jackson-databind</artifactId>
             <version>2.9.1</version>
+            <scope>provided</scope>
         </dependency>
         <!-- tests -->
         <dependency>
@@ -97,7 +99,9 @@
                 <executions>
                     <execution>
                         <id>compile</id>
-                        <goals> <goal>compile</goal> </goals>
+                        <goals>
+                            <goal>compile</goal>
+                        </goals>
                         <configuration>
                             <sourceDirs>
                                 <sourceDir>${project.basedir}/src/main/kotlin</sourceDir>
@@ -107,7 +111,9 @@
                     </execution>
                     <execution>
                         <id>test-compile</id>
-                        <goals> <goal>test-compile</goal> </goals>
+                        <goals>
+                            <goal>test-compile</goal>
+                        </goals>
                         <configuration>
                             <sourceDirs>
                                 <sourceDir>${project.basedir}/src/test/kotlin</sourceDir>
@@ -135,12 +141,16 @@
                     <execution>
                         <id>java-compile</id>
                         <phase>compile</phase>
-                        <goals> <goal>compile</goal> </goals>
+                        <goals>
+                            <goal>compile</goal>
+                        </goals>
                     </execution>
                     <execution>
                         <id>java-test-compile</id>
                         <phase>test-compile</phase>
-                        <goals> <goal>testCompile</goal> </goals>
+                        <goals>
+                            <goal>testCompile</goal>
+                        </goals>
                     </execution>
                 </executions>
             </plugin>
@@ -171,6 +181,7 @@
                             <artifactSet>
                                 <excludes>
                                     <exclude>org.apache.storm:storm-core</exclude>
+                                    <exclude>org.jetbrains.kotlin:kotlin-stdlib</exclude>
                                     <exclude>com.esotericsoftware:kryo</exclude>
                                     <exclude>org.clojure:clojure</exclude>
                                     <exclude>com.lmax:disruptor</exclude>
@@ -178,22 +189,14 @@
                                     <exclude>com.esotericsoftware:reflectasm</exclude>
                                     <exclude>org.ow2.asm:asm</exclude>
                                     <exclude>com.esotericsoftware:minlog</exclude>
-				                    <exclude>org.objenesis:objenesis</exclude>
-				                    <exclude>org.jetbrains:annotations</exclude>
+                                    <exclude>org.objenesis:objenesis</exclude>
+                                    <exclude>org.jetbrains:annotations</exclude>
                                 </excludes>
                             </artifactSet>
                             <relocations>
                                 <relocation>
-                                    <pattern>com.fasterxml</pattern>
-                                    <shadedPattern>org.oryx.shaded.com.fasterxml</shadedPattern>
-                                </relocation>
-                                <relocation>
                                     <pattern>mu</pattern>
                                     <shadedPattern>org.oryx.shaded.mu</shadedPattern>
-                                </relocation>
-                                <relocation>
-                                    <pattern>kotlin</pattern>
-                                    <shadedPattern>org.oryx.shaded.kotlin</shadedPattern>
                                 </relocation>
                                 <relocation>
                                     <pattern>org.apache.log4j</pattern>
