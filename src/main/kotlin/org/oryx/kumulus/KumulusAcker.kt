@@ -71,7 +71,7 @@ class KumulusAcker(
             val messageState =
                     state[messageId] ?:
                             error("State missing for messageId $messageId while emitting from $component to $dest. Tuple: $tuple")
-            messageState.pendingTasks.add(Pair(dest, tuple.kTuple))
+            messageState.pendingTasks.add(dest to tuple.kTuple)
         }
     }
 
@@ -135,7 +135,7 @@ class KumulusAcker(
     }
 
     private fun checkComplete(messageState: MessageState, component: KumulusComponent, input: Tuple?) {
-        val key = Pair(component.taskId, input)
+        val key = component.taskId to input
         (input as TupleImpl).spoutMessageId?.let { spoutMessageId ->
             if (synchronized(completeLock) {
                 assert(messageState.pendingTasks.remove(key)) {

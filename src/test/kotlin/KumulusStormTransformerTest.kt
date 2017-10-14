@@ -126,7 +126,7 @@ internal class KumulusStormTransformerTest {
             override fun cleanup() {}
 
             override fun getComponentConfiguration(): MutableMap<String, Any> {
-                return mutableMapOf(Pair(TOPOLOGY_TICK_TUPLE_FREQ_SECS, 1))
+                return mutableMapOf(TOPOLOGY_TICK_TUPLE_FREQ_SECS to 1)
             }
 
             override fun declareOutputFields(declarer: OutputFieldsDeclarer?) {
@@ -202,7 +202,7 @@ internal class KumulusStormTransformerTest {
         kumulusTopology.stop()
 
         busyTimeMap.map { (bolt, waitNanos) ->
-            Pair(bolt, waitNanos)
+            bolt to waitNanos
         }.sortedBy {
             it.second
         }.reversed().forEach { (bolt, waitNanos) ->

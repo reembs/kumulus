@@ -50,7 +50,7 @@ abstract class KumulusCollector<T: KumulusComponent>(
                 executes += emitToInstance.map { destComponent ->
                     val kumulusTuple = KumulusTuple(component, streamId ?: Utils.DEFAULT_STREAM_ID, tuple, messageId)
                     acker.expandTrees(component, destComponent.taskId, kumulusTuple)
-                    Pair(destComponent, kumulusTuple)
+                    destComponent to kumulusTuple
                 }.toList()
 
                 logger.trace { "Finished emitting from bolt $component" }
