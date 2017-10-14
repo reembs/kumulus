@@ -41,7 +41,7 @@ class KumulusStormTransformer {
 
             componentToSortedTasks[Constants.SYSTEM_COMPONENT_ID] = listOf(Constants.SYSTEM_TASK_ID.toInt())
             componentToStreamToFields[Constants.SYSTEM_COMPONENT_ID] =
-                    mapOf(Pair(Constants.SYSTEM_TICK_STREAM_ID, Fields()))
+                    mapOf(Constants.SYSTEM_TICK_STREAM_ID to Fields())
 
             val codeDir = "/tmp"
             val pidDir = "/tmp"
@@ -97,7 +97,7 @@ class KumulusStormTransformer {
                         }
 
                         componentCommon._inputs?.forEach({
-                            kComponentInputs[Pair(name, it.key)] = it.value
+                            kComponentInputs[name to it.key] = it.value
                         })
 
                         id++

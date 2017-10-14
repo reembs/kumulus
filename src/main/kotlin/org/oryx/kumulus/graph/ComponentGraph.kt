@@ -17,7 +17,7 @@ class ComponentGraph<out N : GraphNode, out E : GraphEdge<N>>(
 
     init {
         val componentsMap = mapOf(*components.map {
-            Pair(it.componentId, it)
+            it.componentId to it
         }.toTypedArray())
 
         val nodeMap: MutableMap<String, N> = mutableMapOf()
