@@ -163,7 +163,7 @@ internal class KumulusStormTransformerTest {
         config[org.oryx.kumulus.KumulusTopology.CONF_THREAD_POOL_CORE_SIZE] = 1
 
         val kumulusTopology =
-                KumulusStormTransformer.initializeTopology(builder, topology, config, "testtopology")
+                KumulusStormTransformer.initializeTopology(topology, config, "testtopology")
 
         val busyTimeMap = ConcurrentHashMap<String, Long>()
 
