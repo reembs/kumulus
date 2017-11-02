@@ -3,7 +3,7 @@
 # kumulus
 A drop-in, non-distributed, replacement for Storm in Kotlin aimed for low latency requirements
 
-Use by initializing a regular Storm topology via ```org.apache.storm.topology.TopologyBuilder``` and produce a ```StormTopology``` object. Use both to transform the topology into a `KumulusTopology`, and run it in process.
+Use by initializing a regular Storm topology via ```org.apache.storm.topology.TopologyBuilder``` and produce a ```StormTopology``` object. Use it to transform the topology into a `KumulusTopology`, and run it in-process.
 
 ```kotlin
 val builder = org.apache.storm.topology.TopologyBuilder()
@@ -15,7 +15,7 @@ builder.setBolt("bolt", Bolt())
         .shuffleGrouping("spout")
 
 val kumulusTopology = KumulusStormTransformer.initializeTopology(
-        builder, builder.createTopology(), config, "topology_name")
+        builder.createTopology(), config, "topology_name")
 kumulusTopology.prepare()
 kumulusTopology.start(true)
 ```
@@ -32,7 +32,7 @@ builder.setBolt("bolt", new Bolt())
 
 KumulusTopology kumulusTopology =
         KumulusStormTransformer.initializeTopology(
-            builder, builder.createTopology(), config, "topology_name");
+            builder.createTopology(), config, "topology_name");
 kumulusTopology.prepare();
 kumulusTopology.start(true);
 ```

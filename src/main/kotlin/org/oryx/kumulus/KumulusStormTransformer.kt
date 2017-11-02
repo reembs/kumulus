@@ -3,9 +3,7 @@ package org.oryx.kumulus
 import clojure.lang.Atom
 import org.apache.storm.Config
 import org.apache.storm.Constants
-import org.apache.storm.generated.ComponentCommon
-import org.apache.storm.generated.GlobalStreamId
-import org.apache.storm.generated.StormTopology
+import org.apache.storm.generated.*
 import org.apache.storm.metric.api.IMetric
 import org.apache.storm.task.TopologyContext
 import org.apache.storm.topology.*
@@ -23,14 +21,22 @@ class KumulusStormTransformer {
     companion object {
         @Suppress("UNCHECKED_CAST")
         @JvmStatic
-        fun initializeTopology(builder: TopologyBuilder, topology: StormTopology?, rawConfig: MutableMap<String, Any>, stormId: String) : KumulusTopology {
-            val boltField = TopologyBuilder::class.java.getDeclaredField("_bolts")
+        fun initializeTopology(topology: StormTopology?, rawConfig: MutableMap<String, Any>, stormId: String) : KumulusTopology {
+            val boltField = StormTopology::class.java.getDeclaredField("bolts")!!
             boltField.isAccessible = true
-            val boltsMap : Map<String, IComponent> = boltField.get(builder) as Map<String, IRichBolt>
+            val serializedBoltsMap : Map<String, Bolt> = boltField.get(topology) as Map<String, Bolt>
+            val boltsMap : Map<String, IComponent> = serializedBoltsMap.entries.associate { (id, bolt) ->
+                val boltObject = bolt._bolt_object!!
+                id to (Utils.javaDeserialize<Serializable>(boltObject._serialized_java, Serializable::class.java) as IComponent)
+            }
 
-            val spoutField = TopologyBuilder::class.java.getDeclaredField("_spouts")
+            val spoutField = StormTopology::class.java.getDeclaredField("spouts")!!
             spoutField.isAccessible = true
-            val spoutsMap : Map<String, IComponent> = spoutField.get(builder) as Map<String, IRichSpout>
+            val serializedSpoutsMap : Map<String, SpoutSpec> = spoutField.get(topology) as Map<String, SpoutSpec>
+            val spoutsMap : Map<String, IComponent> = serializedSpoutsMap.entries.associate { (id, spout) ->
+                val spoutObject = spout._spout_object!!
+                id to (Utils.javaDeserialize<Serializable>(spoutObject._serialized_java, Serializable::class.java) as IComponent)
+            }
 
             val taskToComponent = mutableMapOf<Int, String>()
 
