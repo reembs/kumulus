@@ -7,7 +7,7 @@
 
     <groupId>org.oryx.kumulus</groupId>
     <artifactId>kumulus</artifactId>
-    <version>0.1.20</version>
+    <version>0.1.21</version>
 
     <licenses>
         <license>
@@ -211,6 +211,15 @@
                                     <shadedPattern>org.oryx.shaded.org.slf4j</shadedPattern>
                                 </relocation>
                             </relocations>
+                            <filters>
+                                <filter>
+                                    <artifact>*:*</artifact>
+                                    <excludes>
+                                        <exclude>META-INF/**</exclude>
+                                        <exclude>Log4j-*</exclude>
+                                    </excludes>
+                                </filter>
+                            </filters>
                         </configuration>
                     </execution>
                 </executions>
