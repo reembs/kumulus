@@ -13,7 +13,7 @@ import java.util.concurrent.atomic.AtomicBoolean
 
 class KumulusTopology(
         private val components: List<KumulusComponent>,
-        val config: Map<String, Any>
+        config: Map<String, Any>
 ) : KumulusEmitter {
     private val maxSpoutPending: Long = config[Config.TOPOLOGY_MAX_SPOUT_PENDING] as Long? ?: 0L
     private val boltExecutionPool: ThreadPoolExecutor = ThreadPoolExecutor(
@@ -86,6 +86,11 @@ class KumulusTopology(
         val CONF_SHUTDOWN_TIMEOUT_SECS = "kumulus.shutdown.timeout.secs"
     }
 
+    /**
+     * Do the prepare phase of the topology
+     * @param time timeout duration
+     * @param unit timeout duration unit
+     */
     @Throws(TimeoutException::class)
     fun prepare(time: Long, unit: TimeUnit) {
         val start = System.currentTimeMillis()
@@ -106,6 +111,9 @@ class KumulusTopology(
         }
     }
 
+    /**
+     * Do the prepare phase of the topology
+     */
     fun prepare() {
         startQueuePolling()
 
@@ -142,6 +150,68 @@ class KumulusTopology(
                 }
             }
         }
+    }
+
+    /**
+     * Start the topology spout polling
+     * @param block should the call block until the topology os stopped
+     */
+    fun start(block: Boolean = false) {
+        val spouts = components.filter { it is KumulusSpout }.map { it as KumulusSpout }
+        spouts.forEach { spout ->
+            spout.start(this)
+        }
+        started.set(true)
+        if (block) {
+            shutDownHook.await()
+        }
+    }
+
+    /**
+     * Stop the topology
+     */
+    fun stop() {
+        synchronized(stopLock) {
+            if (shutDownHook.count > 0) {
+                logger.info("Max pool size: ${boltExecutionPool.largestPoolSize}")
+                logger.info { "Deactivating all spouts" }
+                components.filter { it is KumulusSpout }.forEach {
+                    it.isReady.set(false)
+                }
+                acker.releaseSpoutBlocks()
+                logger.info { "Shutting down thread pool and awaiting termination (max: ${shutdownTimeoutSecs}s)" }
+                boltExecutionPool.shutdown()
+                boltExecutionPool.awaitTermination(shutdownTimeoutSecs, TimeUnit.SECONDS)
+                logger.info { "Execution engine threads have been shut down" }
+                shutDownHook.countDown()
+            }
+        }
+    }
+
+    // KumulusEmitter impl
+    override fun getDestinations(tasks: List<Int>): List<KumulusComponent> {
+        return this.components.filter { tasks.contains(it.taskId) }
+    }
+
+    // KumulusEmitter impl
+    override fun execute(destComponent: KumulusComponent, kumulusTuple: KumulusTuple) {
+        mainQueue.add(ExecuteMessage(destComponent, kumulusTuple))
+    }
+
+    // KumulusEmitter impl
+    override fun completeMessageProcessing(spout: KumulusSpout, spoutMessageId: Any?, ack: Boolean) {
+        spout.queue.add(AckMessage(spout, spoutMessageId, ack))
+    }
+
+    fun getGraph() : ComponentGraph<GraphNode, GraphEdge<GraphNode>> {
+        return getGraph(defaultNodeFactory, defaultEdgeFactory)
+    }
+
+    fun <N: GraphNode, E: GraphEdge<N>> getGraph(
+            nodeFactory : ComponentGraphNodeFactory<N>,
+            edgeFactory : ComponentGraphEdgeFactory<N, E>
+    ) : ComponentGraph<GraphNode, GraphEdge<GraphNode>> {
+        return ComponentGraph(this.components, nodeFactory, edgeFactory)
     }
 
     private fun startQueuePolling() {
@@ -212,60 +282,5 @@ class KumulusTopology(
             this.isDaemon = true
             this.start()
         }
-    }
-
-    fun start(block: Boolean = false) {
-        val spouts = components.filter { it is KumulusSpout }.map { it as KumulusSpout }
-        spouts.forEach { spout ->
-            spout.start(this)
-        }
-        started.set(true)
-        if (block) {
-            shutDownHook.await()
-        }
-    }
-
-    fun stop() {
-        synchronized(stopLock) {
-            if (shutDownHook.count > 0) {
-                logger.info("Max pool size: ${boltExecutionPool.largestPoolSize}")
-                logger.info { "Deactivating all spouts" }
-                components.filter { it is KumulusSpout }.forEach {
-                    it.isReady.set(false)
-                }
-                acker.releaseSpoutBlocks()
-                logger.info { "Shutting down thread pool and awaiting termination (max: ${shutdownTimeoutSecs}s)" }
-                boltExecutionPool.shutdown()
-                boltExecutionPool.awaitTermination(shutdownTimeoutSecs, TimeUnit.SECONDS)
-                logger.info { "Execution engine threads have been shut down" }
-                shutDownHook.countDown()
-            }
-        }
-    }
-
-    // KumulusEmitter impl
-    override fun getDestinations(tasks: List<Int>): List<KumulusComponent> {
-        return this.components.filter { tasks.contains(it.taskId) }
-    }
-
-    // KumulusEmitter impl
-    override fun execute(destComponent: KumulusComponent, kumulusTuple: KumulusTuple) {
-        mainQueue.add(ExecuteMessage(destComponent, kumulusTuple))
-    }
-
-    // KumulusEmitter impl
-    override fun completeMessageProcessing(spout: KumulusSpout, spoutMessageId: Any?, ack: Boolean) {
-        spout.queue.add(AckMessage(spout, spoutMessageId, ack))
-    }
-
-    fun getGraph() : ComponentGraph<GraphNode, GraphEdge<GraphNode>> {
-        return getGraph(defaultNodeFactory, defaultEdgeFactory)
-    }
-
-    fun <N: GraphNode, E: GraphEdge<N>> getGraph(
-            nodeFactory : ComponentGraphNodeFactory<N>,
-            edgeFactory : ComponentGraphEdgeFactory<N, E>
-    ) : ComponentGraph<GraphNode, GraphEdge<GraphNode>> {
-        return ComponentGraph(this.components, nodeFactory, edgeFactory)
     }
 }

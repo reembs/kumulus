@@ -19,6 +19,12 @@ import java.io.Serializable
 @Suppress("unused")
 class KumulusStormTransformer {
     companion object {
+        /**
+         * Initialize a Kumulus topology from a {@link StormTopology}
+         * @param topology the Storm topology to transform
+         * @param rawConfig the Storm configuration
+         * @param stormId the Storm topology ID string
+         */
         @Suppress("UNCHECKED_CAST")
         @JvmStatic
         fun initializeTopology(topology: StormTopology?, rawConfig: MutableMap<String, Any>, stormId: String) : KumulusTopology {
