@@ -1,4 +1,4 @@
-package org.oryx.kumulus
+package org.xyro.kumulus
 
 import clojure.lang.Atom
 import org.apache.storm.Config
@@ -11,9 +11,9 @@ import org.apache.storm.topology.base.BaseBasicBolt
 import org.apache.storm.tuple.Fields
 import org.apache.storm.tuple.Tuple
 import org.apache.storm.utils.Utils
-import org.oryx.kumulus.component.KumulusBolt
-import org.oryx.kumulus.component.KumulusComponent
-import org.oryx.kumulus.component.KumulusSpout
+import org.xyro.kumulus.component.KumulusBolt
+import org.xyro.kumulus.component.KumulusComponent
+import org.xyro.kumulus.component.KumulusSpout
 import java.io.Serializable
 
 @Suppress("unused")

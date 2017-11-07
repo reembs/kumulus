@@ -1,11 +1,11 @@
-package org.oryx.kumulus
+package org.xyro.kumulus
 
 import mu.KotlinLogging
 import org.apache.storm.shade.org.eclipse.jetty.util.ConcurrentHashSet
 import org.apache.storm.tuple.Tuple
-import org.oryx.kumulus.component.KumulusComponent
-import org.oryx.kumulus.component.KumulusSpout
-import org.oryx.kumulus.component.TupleImpl
+import org.xyro.kumulus.component.KumulusComponent
+import org.xyro.kumulus.component.KumulusSpout
+import org.xyro.kumulus.component.TupleImpl
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.ScheduledThreadPoolExecutor
 import java.util.concurrent.TimeUnit

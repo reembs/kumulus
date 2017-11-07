@@ -1,7 +1,7 @@
-package org.oryx.kumulus.graph
+package org.xyro.kumulus.graph
 
 import com.fasterxml.jackson.databind.node.ObjectNode
-import org.oryx.kumulus.component.KumulusComponent
+import org.xyro.kumulus.component.KumulusComponent
 
 open class GraphNode(val component : KumulusComponent) {
     open fun toJson() : ObjectNode {

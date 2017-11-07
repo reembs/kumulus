@@ -1,4 +1,4 @@
-package org.oryx.kumulus.component
+package org.xyro.kumulus.component
 
 import org.apache.storm.generated.GlobalStreamId
 import org.apache.storm.task.GeneralTopologyContext

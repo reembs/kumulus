@@ -1,4 +1,4 @@
-package org.oryx.kumulus.graph
+package org.xyro.kumulus.graph
 
 import com.fasterxml.jackson.databind.node.ObjectNode
 import org.apache.storm.generated.Grouping

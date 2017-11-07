@@ -1,12 +1,12 @@
-package org.oryx.kumulus.component
+package org.xyro.kumulus.component
 
 import mu.KotlinLogging
 import org.apache.storm.spout.SpoutOutputCollector
 import org.apache.storm.task.TopologyContext
 import org.apache.storm.topology.IRichSpout
-import org.oryx.kumulus.KumulusAcker
-import org.oryx.kumulus.KumulusTopology
-import org.oryx.kumulus.collector.KumulusSpoutCollector
+import org.xyro.kumulus.KumulusAcker
+import org.xyro.kumulus.KumulusTopology
+import org.xyro.kumulus.collector.KumulusSpoutCollector
 import java.util.concurrent.LinkedBlockingQueue
 import java.util.concurrent.atomic.AtomicBoolean
 

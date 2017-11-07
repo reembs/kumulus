@@ -1,4 +1,4 @@
-package org.oryx.kumulus.grouping
+package org.xyro.kumulus.grouping
 
 import org.apache.storm.generated.GlobalStreamId
 import org.apache.storm.grouping.CustomStreamGrouping

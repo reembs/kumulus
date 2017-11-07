@@ -1,10 +1,10 @@
-package org.oryx.kumulus.collector
+package org.xyro.kumulus.collector
 
 import org.apache.storm.spout.ISpoutOutputCollector
-import org.oryx.kumulus.KumulusAcker
-import org.oryx.kumulus.KumulusEmitter
-import org.oryx.kumulus.component.KumulusComponent
-import org.oryx.kumulus.component.KumulusSpout
+import org.xyro.kumulus.KumulusAcker
+import org.xyro.kumulus.KumulusEmitter
+import org.xyro.kumulus.component.KumulusComponent
+import org.xyro.kumulus.component.KumulusSpout
 
 class KumulusSpoutCollector(
         component: KumulusComponent,
