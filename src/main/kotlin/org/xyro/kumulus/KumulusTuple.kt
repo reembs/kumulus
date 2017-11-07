@@ -1,9 +1,9 @@
-package org.oryx.kumulus
+package org.xyro.kumulus
 
 import org.apache.storm.tuple.MessageId
 import org.apache.storm.tuple.Tuple
-import org.oryx.kumulus.component.KumulusComponent
-import org.oryx.kumulus.component.TupleImpl
+import org.xyro.kumulus.component.KumulusComponent
+import org.xyro.kumulus.component.TupleImpl
 
 class KumulusTuple(
         component: KumulusComponent,

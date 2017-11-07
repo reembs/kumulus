@@ -15,7 +15,7 @@ import org.apache.storm.topology.base.BaseRichSpout
 import org.apache.storm.tuple.Fields
 import org.apache.storm.tuple.Tuple
 import org.junit.Test
-import org.oryx.kumulus.KumulusStormTransformer
+import org.xyro.kumulus.KumulusStormTransformer
 import java.io.FileOutputStream
 import java.io.PrintWriter
 import java.util.concurrent.ConcurrentHashMap
@@ -160,7 +160,7 @@ internal class KumulusStormTransformerTest {
         config[Config.TOPOLOGY_MAX_SPOUT_PENDING] = maxPending
         config[Config.TOPOLOGY_MESSAGE_TIMEOUT_SECS] = 1
 
-        config[org.oryx.kumulus.KumulusTopology.CONF_THREAD_POOL_CORE_SIZE] = 1
+        config[org.xyro.kumulus.KumulusTopology.CONF_THREAD_POOL_CORE_SIZE] = 1
 
         val kumulusTopology =
                 KumulusStormTransformer.initializeTopology(topology, config, "testtopology")

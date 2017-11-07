@@ -1,12 +1,12 @@
-package org.oryx.kumulus.collector
+package org.xyro.kumulus.collector
 
 import mu.KotlinLogging
 import org.apache.storm.task.IOutputCollector
 import org.apache.storm.tuple.Tuple
-import org.oryx.kumulus.KumulusAcker
-import org.oryx.kumulus.KumulusEmitter
-import org.oryx.kumulus.component.KumulusBolt
-import org.oryx.kumulus.component.KumulusComponent
+import org.xyro.kumulus.KumulusAcker
+import org.xyro.kumulus.KumulusEmitter
+import org.xyro.kumulus.component.KumulusBolt
+import org.xyro.kumulus.component.KumulusComponent
 
 class KumulusBoltCollector(
         component: KumulusComponent,

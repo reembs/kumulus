@@ -1,7 +1,7 @@
-package org.oryx.kumulus.graph
+package org.xyro.kumulus.graph
 
 import org.apache.storm.generated.Grouping
-import org.oryx.kumulus.component.KumulusComponent
+import org.xyro.kumulus.component.KumulusComponent
 
 @JvmField
 val defaultNodeFactory = object : ComponentGraphNodeFactory<GraphNode> {

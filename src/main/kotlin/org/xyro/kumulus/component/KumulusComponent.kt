@@ -1,16 +1,16 @@
-package org.oryx.kumulus.component
+package org.xyro.kumulus.component
 
 import org.apache.storm.generated.GlobalStreamId
 import org.apache.storm.grouping.CustomStreamGrouping
 import org.apache.storm.grouping.ShuffleGrouping
 import org.apache.storm.task.TopologyContext
 import org.apache.storm.utils.Utils
-import org.oryx.kumulus.KumulusTuple
-import org.oryx.kumulus.collector.KumulusBoltCollector
-import org.oryx.kumulus.collector.KumulusCollector
-import org.oryx.kumulus.collector.KumulusSpoutCollector
-import org.oryx.kumulus.grouping.AllGrouping
-import org.oryx.kumulus.grouping.FieldsGrouping
+import org.xyro.kumulus.KumulusTuple
+import org.xyro.kumulus.collector.KumulusBoltCollector
+import org.xyro.kumulus.collector.KumulusCollector
+import org.xyro.kumulus.collector.KumulusSpoutCollector
+import org.xyro.kumulus.grouping.AllGrouping
+import org.xyro.kumulus.grouping.FieldsGrouping
 import java.io.Serializable
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicLong

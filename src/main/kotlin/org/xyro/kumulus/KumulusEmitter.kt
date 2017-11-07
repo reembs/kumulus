@@ -1,7 +1,7 @@
-package org.oryx.kumulus
+package org.xyro.kumulus
 
-import org.oryx.kumulus.component.KumulusComponent
-import org.oryx.kumulus.component.KumulusSpout
+import org.xyro.kumulus.component.KumulusComponent
+import org.xyro.kumulus.component.KumulusSpout
 
 interface KumulusEmitter {
     fun getDestinations(tasks: List<Int>): List<KumulusComponent>

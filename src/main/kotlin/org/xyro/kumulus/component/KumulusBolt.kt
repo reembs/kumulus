@@ -1,11 +1,11 @@
-package org.oryx.kumulus.component
+package org.xyro.kumulus.component
 
 import mu.KotlinLogging
 import org.apache.storm.task.OutputCollector
 import org.apache.storm.task.TopologyContext
 import org.apache.storm.topology.IRichBolt
-import org.oryx.kumulus.KumulusTuple
-import org.oryx.kumulus.collector.KumulusBoltCollector
+import org.xyro.kumulus.KumulusTuple
+import org.xyro.kumulus.collector.KumulusBoltCollector
 
 class KumulusBolt(
         config: Map<String, Any>,

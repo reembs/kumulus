@@ -1,13 +1,13 @@
-package org.oryx.kumulus
+package org.xyro.kumulus
 
 import mu.KotlinLogging
 import org.apache.storm.Config
 import org.apache.storm.Constants
 import org.apache.storm.shade.com.google.common.collect.Iterables
-import org.oryx.kumulus.collector.KumulusBoltCollector
-import org.oryx.kumulus.collector.KumulusSpoutCollector
-import org.oryx.kumulus.component.*
-import org.oryx.kumulus.graph.*
+import org.xyro.kumulus.collector.KumulusBoltCollector
+import org.xyro.kumulus.collector.KumulusSpoutCollector
+import org.xyro.kumulus.component.*
+import org.xyro.kumulus.graph.*
 import java.util.concurrent.*
 import java.util.concurrent.atomic.AtomicBoolean
 

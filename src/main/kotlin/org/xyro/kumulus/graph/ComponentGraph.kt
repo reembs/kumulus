@@ -1,7 +1,7 @@
-package org.oryx.kumulus.graph
+package org.xyro.kumulus.graph
 
 import com.fasterxml.jackson.databind.ObjectMapper
-import org.oryx.kumulus.component.KumulusComponent
+import org.xyro.kumulus.component.KumulusComponent
 
 class ComponentGraph<out N : GraphNode, out E : GraphEdge<N>>(
         components: List<KumulusComponent>,
