@@ -1,9 +1,18 @@
 [![Build Status](https://travis-ci.org/reembs/kumulus.svg?branch=master "Build Status")](https://travis-ci.org/reembs/kumulus)
 
 # kumulus
-A drop-in, non-distributed, replacement for Storm in Kotlin aimed for low latency requirements
+A drop-in, non-distributed, replacement for Storm in Kotlin aimed for a sparse processing stream with low latency requirements
 
 Use by initializing a regular Storm topology via ```org.apache.storm.topology.TopologyBuilder``` and produce a ```StormTopology``` object. Use it to transform the topology into a `KumulusTopology`, and run it in-process.
+
+Include via maven
+```xml
+<dependency>
+    <groupId>org.xyro</groupId>
+    <artifactId>kumulus</artifactId>
+    <version>0.1.24</version>
+</dependency>
+```
 
 ```kotlin
 val builder = org.apache.storm.topology.TopologyBuilder()
