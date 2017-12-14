@@ -3,7 +3,6 @@ package org.xyro.kumulus
 import mu.KotlinLogging
 import org.apache.storm.Config
 import org.apache.storm.Constants
-import org.apache.storm.shade.com.google.common.collect.Iterables
 import org.xyro.kumulus.collector.KumulusBoltCollector
 import org.xyro.kumulus.collector.KumulusSpoutCollector
 import org.xyro.kumulus.component.*
@@ -16,31 +15,9 @@ class KumulusTopology(
         config: Map<String, Any>
 ) : KumulusEmitter {
     private val maxSpoutPending: Long = config[Config.TOPOLOGY_MAX_SPOUT_PENDING] as Long? ?: 0L
-    private val boltExecutionPool: ThreadPoolExecutor = ThreadPoolExecutor(
-            (config[CONF_THREAD_POOL_CORE_SIZE] as? Long ?: 1L).toInt(),
-            (config[CONF_THREAD_POOL_MAX_SIZE] as? Long ?: components.size.toLong()).toInt(),
-            config[CONF_THREAD_POOL_KEEP_ALIVE] as? Long ?: 20L,
-            TimeUnit.SECONDS,
-            ArrayBlockingQueue((config[CONF_THREAD_POOL_QUEUE_SIZE] as? Long)?.toInt() ?: components.size * 2),
-            object: ThreadFactory {
-                var count = 0
-                override fun newThread(r: Runnable?): Thread {
-                    count++
-                    logger.info { "Creating new thread: $count" }
-                    return Thread(r).apply {
-                        this.isDaemon = true
-                        this.name = "KumulusThread-$count"
-                    }
-                }
-            },
-            RejectedExecutionHandler { r, executor ->
-                if (!executor.isShutdown && !executor.isTerminating && !executor.isTerminated) {
-                    executor!!.queue.put(r)
-                }
-            }
-    )
+    private val poolSize = (config[CONF_THREAD_POOL_CORE_SIZE] as? Long ?: 1L).toInt()
+    private val boltExecutionPool = ExecutionPool(poolSize, ::handleQueueItem)
     private val stopLock = Any()
-    private val mainQueue = LinkedBlockingQueue<KumulusMessage>()
     private val rejectedExecutionHandler = RejectedExecutionHandler { _, _ ->
         logger.error { "Execution was rejected" }
     }
@@ -51,14 +28,13 @@ class KumulusTopology(
     private val shutdownTimeoutSecs = config[CONF_SHUTDOWN_TIMEOUT_SECS] as? Long ?: 10L
 
     internal val acker: KumulusAcker
-    internal val busyPollSleepTime: Long = config[CONF_BUSY_POLL_SLEEP_TIME] as? Long ?: 5L
+    internal val busyPollSleepTime: Long = config[CONF_BUSY_POLL_SLEEP_TIME] as? Long ?: 1L
 
     var onBusyBoltHook: ((String, Int, Long, Any?) -> Unit)? = null
     var onBoltPrepareFinishHook: ((String, Int, Long) -> Unit)? = null
     var onReportErrorHook: ((String, Int, Throwable) -> Unit)? = null
 
     init {
-        this.boltExecutionPool.prestartAllCoreThreads()
         this.acker = KumulusAcker(
                 this,
                 maxSpoutPending,
@@ -73,10 +49,13 @@ class KumulusTopology(
         @JvmField
         val CONF_EXTRA_ACKING = "kumulus.allow-extra-acking"
         @JvmField
+        @Deprecated("Not in use anymore")
         val CONF_THREAD_POOL_KEEP_ALIVE = "kumulus.thread_pool.keep_alive_secs"
         @JvmField
+        @Deprecated("Not in use anymore")
         val CONF_THREAD_POOL_QUEUE_SIZE = "kumulus.thread_pool.queue.size"
         @JvmField
+        @Deprecated("Not in use anymore")
         val CONF_THREAD_POOL_MAX_SIZE = "kumulus.thread_pool.max_size"
         @JvmField
         val CONF_THREAD_POOL_CORE_SIZE = "kumulus.thread_pool.core_pool_size"
@@ -114,11 +93,9 @@ class KumulusTopology(
     /**
      * Do the prepare phase of the topology
      */
-    fun prepare() {
-        startQueuePolling()
-
+    private fun prepare() {
         components.forEach { component ->
-            mainQueue.add(when (component) {
+            boltExecutionPool.enqueue(when (component) {
                 is KumulusSpout ->
                     SpoutPrepareMessage(
                             component, KumulusSpoutCollector(component, this, acker, onReportErrorHook))
@@ -141,7 +118,7 @@ class KumulusTopology(
                                         listOf(),
                                         null
                                 )
-                                mainQueue.add(ExecuteMessage(component, tuple))
+                                boltExecutionPool.enqueue(ExecuteMessage(component, tuple))
                             } catch (e: Exception) {
                                 logger.error(e) { "Error in sending tick tuple" }
                             }
@@ -173,15 +150,14 @@ class KumulusTopology(
     fun stop() {
         synchronized(stopLock) {
             if (shutDownHook.count > 0) {
-                logger.info("Max pool size: ${boltExecutionPool.largestPoolSize}")
+                logger.info("Pool size: $poolSize")
+                logger.info("Max queue size: ${boltExecutionPool.maxSize.get()}")
                 logger.info { "Deactivating all spouts" }
                 components.filter { it is KumulusSpout }.forEach {
                     it.isReady.set(false)
                 }
                 acker.releaseSpoutBlocks()
                 logger.info { "Shutting down thread pool and awaiting termination (max: ${shutdownTimeoutSecs}s)" }
-                boltExecutionPool.shutdown()
-                boltExecutionPool.awaitTermination(shutdownTimeoutSecs, TimeUnit.SECONDS)
                 logger.info { "Execution engine threads have been shut down" }
                 shutDownHook.countDown()
             }
@@ -195,7 +171,7 @@ class KumulusTopology(
 
     // KumulusEmitter impl
     override fun execute(destComponent: KumulusComponent, kumulusTuple: KumulusTuple) {
-        mainQueue.add(ExecuteMessage(destComponent, kumulusTuple))
+        boltExecutionPool.enqueue(ExecuteMessage(destComponent, kumulusTuple))
     }
 
     // KumulusEmitter impl
@@ -214,73 +190,61 @@ class KumulusTopology(
         return ComponentGraph(this.components, nodeFactory, edgeFactory)
     }
 
-    private fun startQueuePolling() {
-        val pollerRunnable = {
-            while (true) {
-                mainQueue.poll(1, TimeUnit.SECONDS)?.let { message ->
-                    val c = message.component
-                    if (c.inUse.compareAndSet(false, true)) {
-                        boltExecutionPool.execute({
-                            try {
-                                when (message) {
-                                    is PrepareMessage<*> -> {
-                                        c.prepareStart.set(System.nanoTime())
-                                        try {
-                                            if (c.isSpout())
-                                                (c as KumulusSpout).prepare(message.collector as KumulusSpoutCollector)
-                                            else
-                                                (c as KumulusBolt).prepare(message.collector as KumulusBoltCollector)
-                                        } finally {
-                                            onBoltPrepareFinishHook?.let {
-                                                it(c.componentId, c.taskId,System.nanoTime() - c.prepareStart.get())
-                                            }
-                                        }
-                                    }
-                                    is ExecuteMessage -> {
-                                        assert(!c.isSpout()) {
-                                            logger.error {
-                                                "Execute message got to a spout '${c.componentId}', " +
-                                                        "this shouldn't happen."
-                                            }
-                                        }
-                                        onBusyBoltHook?.let {
-                                            val waitNanos = c.waitStart.getAndSet(0)
-                                            if (waitNanos > 0) {
-                                                it(
-                                                        c.componentId,
-                                                        c.taskId,
-                                                        System.nanoTime() - waitNanos,
-                                                        message.tuple.spoutMessageId
-                                                )
-                                            }
-                                        }
-                                        (c as KumulusBolt).execute(message.tuple)
-                                    }
-                                    else ->
-                                        throw UnsupportedOperationException("Operation of type ${c.javaClass.canonicalName} is unsupported")
-                                }
-                            } catch (e: Exception) {
-                                logger.error("An uncaught exception in component '${c.componentId}' has forced a Kumulus shutdown", e)
-                                this.stop()
-                                throw e
-                            } finally {
-                                c.inUse.set(false)
+    private fun handleQueueItem(message: KumulusMessage) {
+        val c = message.component
+        if (c.inUse.compareAndSet(false, true)) {
+            try {
+                when (message) {
+                    is PrepareMessage<*> -> {
+                        c.prepareStart.set(System.nanoTime())
+                        try {
+                            if (c.isSpout())
+                                (c as KumulusSpout).prepare(message.collector as KumulusSpoutCollector)
+                            else
+                                (c as KumulusBolt).prepare(message.collector as KumulusBoltCollector)
+                        } finally {
+                            onBoltPrepareFinishHook?.let {
+                                it(c.componentId, c.taskId,System.nanoTime() - c.prepareStart.get())
                             }
-                        })
-                    } else {
-                        logger.trace { "Component ${c.componentId}/${c.taskId} is currently busy" }
-                        if (onBusyBoltHook != null && message is ExecuteMessage) {
-                            c.waitStart.compareAndSet(0, System.nanoTime())
                         }
-                        mainQueue.add(message)
                     }
+                    is ExecuteMessage -> {
+                        assert(!c.isSpout()) {
+                            logger.error {
+                                "Execute message got to a spout '${c.componentId}', " +
+                                        "this shouldn't happen."
+                            }
+                        }
+                        onBusyBoltHook?.let {
+                            val waitNanos = c.waitStart.getAndSet(0)
+                            if (waitNanos > 0) {
+                                it(
+                                        c.componentId,
+                                        c.taskId,
+                                        System.nanoTime() - waitNanos,
+                                        message.tuple.spoutMessageId
+                                )
+                            }
+                        }
+                        (c as KumulusBolt).execute(message.tuple)
+                    }
+                    else ->
+                        throw UnsupportedOperationException("Operation of type ${c.javaClass.canonicalName} is unsupported")
                 }
+            } catch (e: Exception) {
+                logger.error("An uncaught exception in component '${c.componentId}' has forced a Kumulus shutdown", e)
+                this.stop()
+                throw e
+            } finally {
+                c.inUse.set(false)
             }
-        }
-
-        Thread(pollerRunnable).apply {
-            this.isDaemon = true
-            this.start()
+        } else {
+            logger.trace { "Component ${c.componentId}/${c.taskId} is currently busy" }
+            if (onBusyBoltHook != null && message is ExecuteMessage) {
+                c.waitStart.compareAndSet(0, System.nanoTime())
+            }
+            boltExecutionPool.enqueue(message)
         }
     }
 }
+

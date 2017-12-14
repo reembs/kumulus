@@ -3,6 +3,7 @@ import org.HdrHistogram.Histogram
 import org.apache.storm.Config
 import org.apache.storm.Config.TOPOLOGY_TICK_TUPLE_FREQ_SECS
 import org.apache.storm.Constants
+import org.apache.storm.LocalCluster
 import org.apache.storm.spout.SpoutOutputCollector
 import org.apache.storm.task.OutputCollector
 import org.apache.storm.task.TopologyContext
@@ -30,7 +31,7 @@ internal class KumulusStormTransformerTest {
 
         private val logger = KotlinLogging.logger {}
         private var start = AtomicLong(0)
-        private val TOTAL_ITERATIONS = 100000
+        private val TOTAL_ITERATIONS = System.getenv("TEST_ITERATIONS")?.toInt() ?: 10_000
         private val SINK_BOLT_NAME = "bolt4"
         private val LOG_PERCENTILES = arrayOf(5.0, 25.0, 50.0, 75.0, 90.0, 95.0, 98.0, 99.0, 99.9, 99.99)
     }
@@ -143,7 +144,7 @@ internal class KumulusStormTransformerTest {
                 .shuffleGrouping("bolt")
         builder.setBolt("bolt3", bolt, parallelism)
                 .shuffleGrouping("bolt2")
-        builder.setBolt(SINK_BOLT_NAME, bolt, parallelism)
+        builder.setBolt(SINK_BOLT_NAME, bolt, 1)
                 .shuffleGrouping("bolt3")
 
         builder.setBolt("unanchoring_bolt", unanchoringBolt, parallelism)
@@ -198,7 +199,8 @@ internal class KumulusStormTransformerTest {
         kumulusTopology.start()
         finish.await()
 
-        logger.info { "Done, took: ${System.currentTimeMillis() - start.get()}ms" }
+        logger.info { "Processed $TOTAL_ITERATIONS end-to-end messages in ${System.currentTimeMillis() - start.get()}ms" }
+        logger.info { "Max spout pending: $maxPending" }
         kumulusTopology.stop()
 
         busyTimeMap.map { (bolt, waitNanos) ->
@@ -213,6 +215,8 @@ internal class KumulusStormTransformerTest {
 //        val cluster = LocalCluster()
 //        cluster.submitTopology("testtopology", config, topology)
 //        finish.await()
+//        logger.info { "Processed $TOTAL_ITERATIONS end-to-end messages in ${System.currentTimeMillis() - start.get()}ms" }
+//        logger.info { "Max spout pending: $maxPending" }
     }
 
     class TestBasicBolt(private val failing: Boolean = false) : BaseBasicBolt() {
