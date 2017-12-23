@@ -22,6 +22,9 @@ abstract class KumulusComponent(
     val inUse = AtomicBoolean(false)
     val isReady = AtomicBoolean(false)
 
+    /**
+     * stream -> (component -> grouping)
+     */
     lateinit var groupingStateMap: Map<String, Map<String, CustomStreamGrouping>>
 
     val waitStart = AtomicLong(0)

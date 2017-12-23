@@ -24,7 +24,7 @@ import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicLong
 
-internal class KumulusStormTransformerTest {
+class KumulusStormTransformerTest {
     companion object {
         @JvmStatic
         val finish = CountDownLatch(1)
