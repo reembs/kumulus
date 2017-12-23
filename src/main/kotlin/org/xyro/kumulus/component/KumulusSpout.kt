@@ -83,17 +83,17 @@ class KumulusSpout(
                 throw e
             }
         }.apply {
-            this.isDaemon = true
-            this.start()
+            isDaemon = true
+            start()
         }
     }
 
     private fun mainLoopMethod(acker: KumulusAcker) {
         queue.poll()?.also { ackMessage ->
             if (ackMessage.ack) {
-                spout.ack(ackMessage.spoutMessageId)
+                ack(ackMessage.spoutMessageId)
             } else {
-                spout.fail(ackMessage.spoutMessageId)
+                fail(ackMessage.spoutMessageId)
             }
         }.let {
             if (it == null && isReady.get()) {

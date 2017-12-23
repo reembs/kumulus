@@ -4,6 +4,8 @@ import clojure.lang.Atom
 import org.apache.storm.Config
 import org.apache.storm.Constants
 import org.apache.storm.generated.*
+import org.apache.storm.grouping.CustomStreamGrouping
+import org.apache.storm.grouping.ShuffleGrouping
 import org.apache.storm.metric.api.IMetric
 import org.apache.storm.task.TopologyContext
 import org.apache.storm.topology.*
@@ -14,6 +16,8 @@ import org.apache.storm.utils.Utils
 import org.xyro.kumulus.component.KumulusBolt
 import org.xyro.kumulus.component.KumulusComponent
 import org.xyro.kumulus.component.KumulusSpout
+import org.xyro.kumulus.grouping.AllGrouping
+import org.xyro.kumulus.grouping.FieldsGrouping
 import java.io.Serializable
 
 @Suppress("unused")
@@ -27,7 +31,7 @@ class KumulusStormTransformer {
          */
         @Suppress("UNCHECKED_CAST")
         @JvmStatic
-        fun initializeTopology(topology: StormTopology?, rawConfig: MutableMap<String, Any>, stormId: String) : KumulusTopology {
+        fun initializeTopology(topology: StormTopology, rawConfig: MutableMap<String, Any>, stormId: String) : KumulusTopology {
             val boltField = StormTopology::class.java.getDeclaredField("bolts")!!
             boltField.isAccessible = true
             val serializedBoltsMap : Map<String, Bolt> = boltField.get(topology) as Map<String, Bolt>
@@ -65,7 +69,7 @@ class KumulusStormTransformer {
             val registeredMetrics : Map<Int, Map<Int, Map<String, IMetric>>> = LinkedHashMap()
 
             val getter: (String) -> ComponentCommon = { id ->
-                if (topology?._bolts?.containsKey(id)!!) {
+                if (topology._bolts?.containsKey(id)!!) {
                     topology._bolts[id]!!._common
                 } else {
                     topology._spouts[id]!!._common
@@ -122,11 +126,18 @@ class KumulusStormTransformer {
             }
 
             componentToSortedTasks.forEach({ componentId: String, taskIds: List<Int> ->
-                val componentObjectSerialized = if (topology?._spouts?.containsKey(componentId)!!) {
-                    topology._spouts[componentId]?._spout_object
-                } else {
-                    topology._bolts[componentId]?._bolt_object
-                }
+                val (componentObjectSerialized, componentCommon) =
+                        when {
+                            topology._spouts!!.containsKey(componentId) ->
+                                topology._spouts[componentId]!!
+                                        .let { it._spout_object!! to it._common!! }
+                            topology._bolts!!.containsKey(componentId) ->
+                                topology._bolts[componentId]!!
+                                        .let { it._bolt_object!! to it._common!! }
+                            componentId == Constants.SYSTEM_COMPONENT_ID ->
+                                    null to null
+                            else -> throw Exception("Component name '$componentId' was not found in underlaying topology object")
+                        }
 
                 taskIds.forEach({ taskId ->
                     val componentInstance =
@@ -138,7 +149,7 @@ class KumulusStormTransformer {
                                     }
                                 })
                             } else {
-                                Utils.javaDeserialize<Serializable>(componentObjectSerialized?._serialized_java, Serializable::class.java)
+                                Utils.javaDeserialize<Serializable>(componentObjectSerialized!!._serialized_java, Serializable::class.java)
                             }
 
                     val context = TopologyContext(
@@ -160,8 +171,8 @@ class KumulusStormTransformer {
                             Atom(Object()))
 
                     kComponents += when (componentInstance) {
-                        is IRichBolt ->
-                            KumulusBolt(config, context, componentInstance).apply {
+                        is IRichBolt -> {
+                            KumulusBolt(config, context, componentInstance, componentCommon).apply {
                                 (componentInstance.componentConfiguration ?: mapOf())[Config.TOPOLOGY_TICK_TUPLE_FREQ_SECS]?.let { secs ->
                                     assert(secs is Number)
                                     (secs as Number).let {
@@ -169,6 +180,7 @@ class KumulusStormTransformer {
                                     }
                                 }
                             }
+                        }
                         is IRichSpout -> KumulusSpout(config, context, componentInstance)
                         else ->
                             throw Throwable("Component of type ${componentInstance::class.qualifiedName} is not acceptable by Kumulus")
@@ -176,7 +188,44 @@ class KumulusStormTransformer {
                 })
             })
 
+            validateTopology(kComponents)
+
             return KumulusTopology(kComponents, config)
         }
+
+        private fun validateTopology(components: MutableList<KumulusComponent>) {
+            components.forEach { src ->
+                (src as? KumulusBolt)?.apply {
+                    inputs.forEach { gid, grouping ->
+                        val input = components.find { it.componentId == gid._componentId } ?:
+                                throw KumulusTopologyValidationException(
+                                        "Component '$componentId' is connected to non-existent component " +
+                                                "'${gid._componentId}'")
+
+                        when (input) {
+                            is KumulusBolt -> {
+                                if (!input.streams.containsKey(gid._streamId)) {
+                                    throw KumulusTopologyValidationException(
+                                            "Component '$componentId' is connected to non-existent stream " +
+                                                    "'${gid._streamId}' of component '${gid._componentId}'")
+                                }
+                                if (grouping.is_set_fields) {
+                                    val declaredFields = input.streams[gid._streamId]!!._output_fields.toSet()
+                                    if (!grouping._fields.all { declaredFields.contains(it) }) {
+                                        throw KumulusTopologyValidationException(
+                                                "Component '$componentId' is connected to stream '${gid._streamId}' of component " +
+                                                        "'${gid._componentId}' grouped by non existing fields ${grouping._fields}")
+                                    }
+                                }
+                            }
+                            is KumulusSpout -> {}
+                            else -> throw Exception("Unexpected error")
+                        }
+                    }
+                }
+            }
+        }
     }
+
+    class KumulusTopologyValidationException(msg: String) : Exception(msg)
 }
