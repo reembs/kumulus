@@ -81,3 +81,5 @@ Processed 100000 end-to-end messages in 2813ms
 ```
 
 Startup time was not included in the test results. Naturally, Storm's startup times are significantly higher.
+
+Licensed under Apache 2.0
