@@ -1,9 +1,16 @@
 [![Build Status](https://travis-ci.org/reembs/kumulus.svg?branch=master "Build Status")](https://travis-ci.org/reembs/kumulus)
 
 # kumulus
-A drop-in, non-distributed, replacement for Storm in Kotlin aimed for a sparse processing stream with low latency requirements
+A drop-in, non-distributed, replacement for Storm in Kotlin aimed for a sparse processing stream with low latency requirements.
 
-Use by initializing a regular Storm topology via ```org.apache.storm.topology.TopologyBuilder``` and produce a ```StormTopology``` object. Use it to transform the topology into a `KumulusTopology`, and run it in-process.
+In comparison to Storm, Kumulus is optimized for low end-to-end latency rather then high throughput.
+
+As opposed to Storm that creates at least a single thread per bolt, Kumulus uses a constant size thread pool.
+
+Possible scenarios to use Kumulus:
+- You think you would need to use Storm in the future, but don't have a way to justify the kind of cluster it takes to use Storm today.
+- You have huge topologies that can't be run on developer machines and are looking for a way to achieve that
+- You have low latency requirements and don't imagine needing to shard your topology across multiple machines
 
 Include via maven
 ```xml
@@ -13,6 +20,8 @@ Include via maven
     <version>0.1.27</version>
 </dependency>
 ```
+
+Use by initializing a regular Storm topology via ```org.apache.storm.topology.TopologyBuilder``` and produce a ```StormTopology``` object. Use it to transform the topology into a `KumulusTopology`, and run it in-process.
 
 ```kotlin
 val builder = org.apache.storm.topology.TopologyBuilder()
@@ -80,6 +89,6 @@ Processed 100000 end-to-end messages in 109097ms
 Processed 100000 end-to-end messages in 2813ms
 ```
 
-Startup time was not included in the test results. Naturally, Storm's startup times are significantly higher.
+Startup time was not included in the test results. Naturally, Storm's startup times are significantly higher in local-cluster mode.
 
 Licensed under Apache 2.0
