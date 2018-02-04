@@ -1,29 +1,20 @@
 package org.xyro.kumulus.component
 
 import org.apache.storm.generated.GlobalStreamId
-import org.apache.storm.task.GeneralTopologyContext
 import org.apache.storm.tuple.Fields
 import org.apache.storm.tuple.MessageId
 import org.apache.storm.tuple.Tuple
 
-open class TupleImpl : Tuple {
-    val spoutMessageId: Any?
-
-    private val context: GeneralTopologyContext
-    private val values: List<Any>
-    private val taskId: Int
-    private val streamId: String
-    private val id: MessageId
-
-    constructor(context: GeneralTopologyContext, values: List<Any>, taskId: Int, streamId: String, id: MessageId, spoutMessageId: Any?) {
-        this.context = context
-        this.values = values
-        this.taskId = taskId
-        this.streamId = streamId
-        this.id = id
-        this.spoutMessageId = spoutMessageId
-        val componentId = context.getComponentId(taskId)
-        val schema = context.getComponentOutputFields(componentId, streamId)
+open class TupleImpl(
+        private val component: KumulusComponent,
+        private val values: List<Any>,
+        private val taskId: Int,
+        private val streamId: String,
+        private val id: MessageId,
+        val spoutMessageId: Any?
+) : Tuple {
+    init {
+        val schema = component.getOutputFields(streamId)
         if (values.size != schema.size()) {
             throw IllegalArgumentException(
                     "Tuple created with wrong number of fields. " +
@@ -31,10 +22,6 @@ open class TupleImpl : Tuple {
                             values.size + " fields")
         }
     }
-
-    constructor(context: GeneralTopologyContext, values: List<Any>, taskId: Int, streamId: String) :
-            this(context, values, taskId, streamId, MessageId.makeUnanchored(), null)
-
 
     override fun size(): Int {
         return values.size
@@ -134,7 +121,7 @@ open class TupleImpl : Tuple {
     }
 
     override fun getFields(): Fields {
-        return context.getComponentOutputFields(sourceComponent, sourceStreamId)
+        return component.getOutputFields(sourceStreamId)
     }
 
     override fun select(selector: Fields): List<Any> {
@@ -151,7 +138,7 @@ open class TupleImpl : Tuple {
     }
 
     override fun getSourceComponent(): String {
-        return context.getComponentId(taskId)
+        return component.componentId
     }
 
     override fun getSourceTask(): Int {

@@ -6,15 +6,17 @@ import org.apache.storm.task.TopologyContext
 import org.apache.storm.topology.IRichSpout
 import org.xyro.kumulus.KumulusAcker
 import org.xyro.kumulus.KumulusTopology
+import org.xyro.kumulus.KumulusTopologyContext
 import org.xyro.kumulus.collector.KumulusSpoutCollector
 import java.util.concurrent.LinkedBlockingQueue
 import java.util.concurrent.atomic.AtomicBoolean
 
 class KumulusSpout(
         config: Map<String, Any>,
-        context: TopologyContext,
+        componentId: String,
+        taskId: Int,
         componentInstance: IRichSpout
-) : KumulusComponent(config, context) {
+) : KumulusComponent(config, componentId, taskId) {
     companion object {
         private val logger = KotlinLogging.logger {}
     }
@@ -27,24 +29,28 @@ class KumulusSpout(
     val queue = LinkedBlockingQueue<AckMessage>()
 
     fun prepare(collector: KumulusSpoutCollector) {
-        logger.debug { "Created spout '$componentId' with taskId $taskId (index: ${context.thisTaskIndex}). Object hashcode: ${this.hashCode()}" }
-        spout.open(config, context, SpoutOutputCollector(collector))
+        logger.debug { "Created spout '$componentId' with taskId $taskId (index: ${getThisTaskIndex()}). Object hashcode: ${this.hashCode()}" }
+        if (spout is KumulusIRichSpout) {
+            spout.open(config, context as KumulusTopologyContext, SpoutOutputCollector(collector))
+        } else {
+            spout.open(config, context as TopologyContext, SpoutOutputCollector(collector))
+        }
         super.prepare()
     }
 
-    fun nextTuple() {
+    private fun nextTuple() {
         spout.nextTuple()
     }
 
-    fun ack(msgId: Any?) {
+    private fun ack(msgId: Any?) {
         spout.ack(msgId)
     }
 
-    fun fail(msgId: Any?) {
+    private fun fail(msgId: Any?) {
         spout.fail(msgId)
     }
 
-    fun activate() {
+    private fun activate() {
         spout.activate()
     }
 

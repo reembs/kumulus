@@ -186,15 +186,6 @@ class KumulusStormTransformerTest {
             })
         }
 
-        System.getenv("GRAPH_OUT_PATH")?.let { path ->
-            val graph = kumulusTopology.getGraph()
-            FileOutputStream(path, false).use {
-                PrintWriter(it).use {
-                    it.print(graph.toJson())
-                }
-            }
-        }
-
         kumulusTopology.prepare(10, TimeUnit.SECONDS)
         kumulusTopology.start()
         finish.await()

@@ -3,16 +3,20 @@ package org.xyro.kumulus
 import mu.KotlinLogging
 import org.apache.storm.Config
 import org.apache.storm.Constants
+import org.apache.storm.generated.StreamInfo
+import org.apache.storm.tuple.Fields
 import org.xyro.kumulus.collector.KumulusBoltCollector
 import org.xyro.kumulus.collector.KumulusSpoutCollector
 import org.xyro.kumulus.component.*
-import org.xyro.kumulus.graph.*
 import java.util.concurrent.*
 import java.util.concurrent.atomic.AtomicBoolean
 
 class KumulusTopology(
         private val components: List<KumulusComponent>,
-        config: Map<String, Any>
+        private val config: Map<String, Any>,
+        private val componentDataMap: Map<Int, ComponentData>,
+        private val streams: MutableMap<String, MutableMap<String, StreamInfo>>,
+        private val stormId: String = "topology"
 ) : KumulusEmitter {
     private val maxSpoutPending: Long = config[Config.TOPOLOGY_MAX_SPOUT_PENDING] as Long? ?: 0L
     private val poolSize = (config[CONF_THREAD_POOL_CORE_SIZE] as? Long ?: 1L).toInt()
@@ -23,9 +27,10 @@ class KumulusTopology(
     }
     private val tickExecutor = ScheduledThreadPoolExecutor(1, rejectedExecutionHandler)
     private val started = AtomicBoolean(false)
-    private val systemComponent = components.first { it.taskId == Constants.SYSTEM_TASK_ID.toInt() }
+    //private val systemComponent = components.first { it.taskId == Constants.SYSTEM_TASK_ID.toInt() }
     private val shutDownHook = CountDownLatch(1)
     private val shutdownTimeoutSecs = config[CONF_SHUTDOWN_TIMEOUT_SECS] as? Long ?: 10L
+    private val taskToComponent = components.map { it.taskId to it }.toMap()
 
     internal val acker: KumulusAcker
     internal val busyPollSleepTime: Long = config[CONF_BUSY_POLL_SLEEP_TIME] as? Long ?: 1L
@@ -46,23 +51,52 @@ class KumulusTopology(
     companion object {
         private val logger = KotlinLogging.logger {}
 
-        @JvmField
-        val CONF_EXTRA_ACKING = "kumulus.allow-extra-acking"
-        @JvmField
+        const val CONF_EXTRA_ACKING = "kumulus.allow-extra-acking"
+        @Suppress("unused")
         @Deprecated("Not in use anymore")
-        val CONF_THREAD_POOL_KEEP_ALIVE = "kumulus.thread_pool.keep_alive_secs"
-        @JvmField
+        const val CONF_THREAD_POOL_KEEP_ALIVE = "kumulus.thread_pool.keep_alive_secs"
+        @Suppress("unused")
         @Deprecated("Not in use anymore")
-        val CONF_THREAD_POOL_QUEUE_SIZE = "kumulus.thread_pool.queue.size"
-        @JvmField
+        const val CONF_THREAD_POOL_QUEUE_SIZE = "kumulus.thread_pool.queue.size"
+        @Suppress("unused")
         @Deprecated("Not in use anymore")
-        val CONF_THREAD_POOL_MAX_SIZE = "kumulus.thread_pool.max_size"
-        @JvmField
-        val CONF_THREAD_POOL_CORE_SIZE = "kumulus.thread_pool.core_pool_size"
-        @JvmField
-        val CONF_BUSY_POLL_SLEEP_TIME = "kumulus.spout.not-ready-sleep"
-        @JvmField
-        val CONF_SHUTDOWN_TIMEOUT_SECS = "kumulus.shutdown.timeout.secs"
+        const val CONF_THREAD_POOL_MAX_SIZE = "kumulus.thread_pool.max_size"
+        const val CONF_THREAD_POOL_CORE_SIZE = "kumulus.thread_pool.core_pool_size"
+        const val CONF_BUSY_POLL_SLEEP_TIME = "kumulus.spout.not-ready-sleep"
+        const val CONF_SHUTDOWN_TIMEOUT_SECS = "kumulus.shutdown.timeout.secs"
+    }
+
+    fun validateTopology() {
+        components.forEach { src ->
+            (src as? KumulusBolt)?.apply {
+                inputs.forEach { gid, grouping ->
+                    val input = components.find { it.componentId == gid._componentId } ?:
+                            throw KumulusStormTransformer.KumulusTopologyValidationException(
+                                    "Component '$componentId' is connected to non-existent component " +
+                                            "'${gid._componentId}'")
+
+                    when (input) {
+                        is KumulusBolt -> {
+                            if (!input.outputs.containsKey(gid._streamId)) {
+                                throw KumulusStormTransformer.KumulusTopologyValidationException(
+                                        "Component '$componentId' is connected to non-existent stream " +
+                                                "'${gid._streamId}' of component '${gid._componentId}'")
+                            }
+                            if (grouping.is_set_fields) {
+                                val declaredFields = input.outputs[gid._streamId]!!._output_fields.toSet()
+                                if (!grouping._fields.all { declaredFields.contains(it) }) {
+                                    throw KumulusStormTransformer.KumulusTopologyValidationException(
+                                            "Component '$componentId' is connected to stream '${gid._streamId}' of component " +
+                                                    "'${gid._componentId}' grouped by non existing fields ${grouping._fields}")
+                                }
+                            }
+                        }
+                        is KumulusSpout -> {}
+                        else -> throw Exception("Unexpected error")
+                    }
+                }
+            }
+        }
     }
 
     /**
@@ -94,14 +128,48 @@ class KumulusTopology(
      * Do the prepare phase of the topology
      */
     private fun prepare() {
+        val componentToStreamToFields: Map<String, Map<String, Fields>> =
+                streams.map { (k, v) ->
+                    val streamMap = v.map { (stream, info) ->
+                        stream to Fields(info._output_fields)
+                    }.toMap()
+                    k to streamMap
+                }.toMap()
+
+        val taskToComponentName: Map<Int, String> =
+                components.map { it.taskId to it.componentId }.toMap()
+
+        val componentToSortedTasks: Map<String, List<Int>> =
+                components
+                        .map { it.componentId to it.taskId }
+                        .groupBy { (componentName) -> componentName }
+                        .mapValues { it.value.map { (_, task) -> task } }
+
+
         components.forEach { component ->
+            val componentData = componentDataMap[component.taskId]!!
+
+            val rawContext = componentData.createContext(
+                    config,
+                    taskToComponentName,
+                    componentToSortedTasks,
+                    componentToStreamToFields,
+                    stormId,
+                    component.taskId)
+
             boltExecutionPool.enqueue(when (component) {
                 is KumulusSpout ->
                     SpoutPrepareMessage(
-                            component, KumulusSpoutCollector(component, this, acker, onReportErrorHook))
+                            component,
+                            rawContext,
+                            KumulusSpoutCollector(component, this, acker, onReportErrorHook)
+                    )
                 is KumulusBolt -> {
                     BoltPrepareMessage(
-                            component, KumulusBoltCollector(component, this, acker, onReportErrorHook))
+                            component,
+                            rawContext,
+                            KumulusBoltCollector(component, this, acker, onReportErrorHook)
+                    )
                 }
                 else ->
                     throw UnsupportedOperationException()
@@ -113,7 +181,7 @@ class KumulusTopology(
                         if (started.get()) {
                             try {
                                 val tuple = KumulusTuple(
-                                        systemComponent,
+                                        taskToComponent[Constants.SYSTEM_TASK_ID.toInt()]!!,
                                         Constants.SYSTEM_TICK_STREAM_ID,
                                         listOf(),
                                         null
@@ -179,23 +247,13 @@ class KumulusTopology(
         spout.queue.add(AckMessage(spout, spoutMessageId, ack))
     }
 
-    fun getGraph() : ComponentGraph<GraphNode, GraphEdge<GraphNode>> {
-        return getGraph(defaultNodeFactory, defaultEdgeFactory)
-    }
-
-    fun <N: GraphNode, E: GraphEdge<N>> getGraph(
-            nodeFactory : ComponentGraphNodeFactory<N>,
-            edgeFactory : ComponentGraphEdgeFactory<N, E>
-    ) : ComponentGraph<GraphNode, GraphEdge<GraphNode>> {
-        return ComponentGraph(this.components, nodeFactory, edgeFactory)
-    }
-
     private fun handleQueueItem(message: KumulusMessage) {
         val c = message.component
         if (c.inUse.compareAndSet(false, true)) {
             try {
                 when (message) {
                     is PrepareMessage<*> -> {
+                        c.setContext(message.context)
                         c.prepareStart.set(System.nanoTime())
                         try {
                             if (c.isSpout())
@@ -247,4 +305,3 @@ class KumulusTopology(
         }
     }
 }
-
