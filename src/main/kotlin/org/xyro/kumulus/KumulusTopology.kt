@@ -26,6 +26,9 @@ class KumulusTopology(
     private val systemComponent = components.first { it.taskId == Constants.SYSTEM_TASK_ID.toInt() }
     private val shutDownHook = CountDownLatch(1)
     private val shutdownTimeoutSecs = config[CONF_SHUTDOWN_TIMEOUT_SECS] as? Long ?: 10L
+    private val taskIdToComponent: Map<Int, KumulusComponent> = this.components
+            .map { Pair(it.taskId, it) }
+            .toMap()
 
     internal val acker: KumulusAcker
     internal val busyPollSleepTime: Long = config[CONF_BUSY_POLL_SLEEP_TIME] as? Long ?: 1L
@@ -166,7 +169,7 @@ class KumulusTopology(
 
     // KumulusEmitter impl
     override fun getDestinations(tasks: List<Int>): List<KumulusComponent> {
-        return this.components.filter { tasks.contains(it.taskId) }
+        return tasks.map { taskIdToComponent[it]!! }
     }
 
     // KumulusEmitter impl

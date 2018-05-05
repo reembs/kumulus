@@ -3,6 +3,7 @@ package org.xyro.kumulus.grouping
 import org.apache.storm.generated.GlobalStreamId
 import org.apache.storm.grouping.CustomStreamGrouping
 import org.apache.storm.task.WorkerTopologyContext
+import kotlin.math.absoluteValue
 
 class FieldsGrouping(
         private val groupingFields: List<String>,
@@ -24,6 +25,6 @@ class FieldsGrouping(
             }
         }
 
-        return listOf(tasks[(groupingHashes % tasks.size).toInt()])
+        return listOf(tasks[(groupingHashes % tasks.size).toInt().absoluteValue])
     }
 }

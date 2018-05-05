@@ -7,7 +7,7 @@
 
     <groupId>org.xyro</groupId>
     <artifactId>kumulus</artifactId>
-    <version>0.1.27</version>
+    <version>0.1.28</version>
 
     <name>kumulus</name>
     <description>A lightweight, in-process, drop-in replacement for Apache Storm</description>
@@ -37,7 +37,7 @@
     </developers>
 
     <properties>
-        <kotlin.version>1.2.10</kotlin.version>
+        <kotlin.version>1.2.41</kotlin.version>
         <storm.version>1.0.4</storm.version>
         <junit.version>4.12</junit.version>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
@@ -48,7 +48,7 @@
     <dependencies>
         <dependency>
             <groupId>org.jetbrains.kotlin</groupId>
-            <artifactId>kotlin-stdlib-jre8</artifactId>
+            <artifactId>kotlin-stdlib-jdk8</artifactId>
             <version>${kotlin.version}</version>
             <scope>provided</scope>
         </dependency>
