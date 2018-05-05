@@ -3,7 +3,6 @@ import org.HdrHistogram.Histogram
 import org.apache.storm.Config
 import org.apache.storm.Config.TOPOLOGY_TICK_TUPLE_FREQ_SECS
 import org.apache.storm.Constants
-import org.apache.storm.LocalCluster
 import org.apache.storm.spout.SpoutOutputCollector
 import org.apache.storm.task.OutputCollector
 import org.apache.storm.task.TopologyContext
@@ -15,6 +14,7 @@ import org.apache.storm.topology.base.BaseBasicBolt
 import org.apache.storm.topology.base.BaseRichSpout
 import org.apache.storm.tuple.Fields
 import org.apache.storm.tuple.Tuple
+import org.junit.Ignore
 import org.junit.Test
 import org.xyro.kumulus.KumulusStormTransformer
 import java.io.FileOutputStream
@@ -31,9 +31,10 @@ class KumulusStormTransformerTest {
 
         private val logger = KotlinLogging.logger {}
         private var start = AtomicLong(0)
-        private val TOTAL_ITERATIONS = System.getenv("TEST_ITERATIONS")?.toInt() ?: 10_000
+        private val TOTAL_ITERATIONS = System.getenv("TEST_ITERATIONS")?.toInt() ?: 1000
         private val SINK_BOLT_NAME = "bolt4"
         private val LOG_PERCENTILES = arrayOf(5.0, 25.0, 50.0, 75.0, 90.0, 95.0, 98.0, 99.0, 99.9, 99.99)
+        private val spoutFields = Fields("index", "nano-time")
     }
 
     @Test
@@ -42,57 +43,7 @@ class KumulusStormTransformerTest {
 
         val config: MutableMap<String, Any> = mutableMapOf()
 
-        val spout = object : BaseRichSpout() {
-            var collector: SpoutOutputCollector? = null
-
-            var i = 0
-
-            override fun nextTuple() {
-                if (i < TOTAL_ITERATIONS) {
-                    i++
-                    logger.debug { "nextTuple() called in ${this.hashCode()}" }
-                    this.collector?.emit(listOf(i, System.nanoTime()), i)
-                }
-            }
-
-            override fun open(conf: MutableMap<Any?, Any?>?, context: TopologyContext?, collector: SpoutOutputCollector?) {
-                this.collector = collector
-                start.compareAndSet(0L, System.currentTimeMillis())
-            }
-
-            override fun declareOutputFields(declarer: OutputFieldsDeclarer?) {
-                declarer?.declare(Fields("index", "nano-time"))
-            }
-
-            override fun fail(msgId: Any?) {
-                logger.error { "Got fail for $msgId" }
-
-                if (msgId != null) {
-                    logMsg(msgId)
-                }
-
-                super.fail(msgId)
-            }
-
-            override fun ack(msgId: Any?) {
-                logger.trace { "Got ack for $msgId" }
-
-                if (msgId != null) {
-                    if (msgId as Int == TOTAL_ITERATIONS) {
-                        finish.countDown()
-                    }
-                    logMsg(msgId)
-                }
-
-                super.ack(msgId)
-            }
-
-            private val seen = HashSet<Any>()
-
-            fun logMsg(msgId: Any) {
-                assert(seen.add(msgId)) { "MessageId $msgId was acked twice" }
-            }
-        }
+        val spout = TestSpout()
 
         val bolt = TestBasicBolt()
 
@@ -217,6 +168,172 @@ class KumulusStormTransformerTest {
 //        finish.await()
 //        logger.info { "Processed $TOTAL_ITERATIONS end-to-end messages in ${System.currentTimeMillis() - start.get()}ms" }
 //        logger.info { "Max spout pending: $maxPending" }
+    }
+
+    @Test
+    @Ignore
+    fun test2() {
+        val builder = org.apache.storm.topology.TopologyBuilder()
+
+        val config: MutableMap<String, Any> = mutableMapOf()
+        config[Config.TOPOLOGY_MAX_SPOUT_PENDING] = 1
+
+        builder.setSpout("spout", TestSpout())
+
+        var connectNext = "spout"
+        for (i in 1..1000) {
+            val boltName = "bolt-$i"
+            builder.setBolt(boltName, object: BaseBasicBolt(){
+                override fun execute(input: Tuple, collector: BasicOutputCollector) {
+                    collector.emit(input.select(spoutFields))
+                }
+                override fun declareOutputFields(declarer: OutputFieldsDeclarer) {
+                    declarer.declare(spoutFields)
+                }
+            }).noneGrouping(connectNext)
+            connectNext = boltName
+        }
+
+        builder.setBolt("end_bolt", object: BaseBasicBolt(){
+            override fun execute(input: Tuple, collector: BasicOutputCollector) {
+                val values = input.select(spoutFields)!!
+                val nanoTime = values[1] as Long
+                logger.info { "Took: ${(System.nanoTime() - nanoTime) / 1000 / 1000.0}ms" }
+            }
+            override fun declareOutputFields(declarer: OutputFieldsDeclarer) {
+                declarer.declare(spoutFields)
+            }
+        }).noneGrouping(connectNext)
+
+        val kumulusTopology =
+                KumulusStormTransformer.initializeTopology(builder.createTopology()!!, config, "testtopology")
+        kumulusTopology.prepare(120, TimeUnit.SECONDS)
+        kumulusTopology.start(false)
+
+        finish.await()
+
+        logger.info { "Processed $TOTAL_ITERATIONS end-to-end messages in ${System.currentTimeMillis() - start.get()}ms" }
+        kumulusTopology.stop()
+    }
+
+    @Test
+    @Ignore
+    fun test3() {
+        val builder = org.apache.storm.topology.TopologyBuilder()
+
+        val config: MutableMap<String, Any> = mutableMapOf()
+        config[Config.TOPOLOGY_MAX_SPOUT_PENDING] = 1
+
+        builder.setSpout("spout", TestSpout())
+
+        val size = 1000
+
+        val boltDeclarer = builder.setBolt("join", object : BaseBasicBolt() {
+            var pending: Int = size
+            var currentMsgId: Any? = null
+
+            override fun execute(input: Tuple, collector: BasicOutputCollector) {
+                val jobId = input.getInteger(0)
+                if (jobId != currentMsgId) {
+                    pending = size
+                    currentMsgId = jobId
+                }
+                pending -= 1
+                if (pending == 0) {
+                    collector.emit(input.select(spoutFields))
+                }
+            }
+
+            override fun declareOutputFields(declarer: OutputFieldsDeclarer) {
+                declarer.declare(spoutFields)
+            }
+        })
+
+        for (i in 1..size) {
+            val boltName = "bolt-$i"
+            builder.setBolt(boltName, object: BaseBasicBolt(){
+                override fun execute(input: Tuple, collector: BasicOutputCollector) {
+                    collector.emit(input.select(spoutFields))
+                }
+                override fun declareOutputFields(declarer: OutputFieldsDeclarer) {
+                    declarer.declare(spoutFields)
+                }
+            }).noneGrouping("spout")
+            boltDeclarer.noneGrouping(boltName)
+        }
+
+        builder.setBolt("end_bolt", object: BaseBasicBolt(){
+            override fun execute(input: Tuple, collector: BasicOutputCollector) {
+                val values = input.select(spoutFields)!!
+                val nanoTime = values[1] as Long
+                logger.info { "Took: ${(System.nanoTime() - nanoTime) / 1000 / 1000.0}ms" }
+            }
+            override fun declareOutputFields(declarer: OutputFieldsDeclarer) {
+                declarer.declare(spoutFields)
+            }
+        }).noneGrouping("join")
+
+        val kumulusTopology =
+                KumulusStormTransformer.initializeTopology(builder.createTopology()!!, config, "testtopology")
+        kumulusTopology.prepare(30, TimeUnit.SECONDS)
+        kumulusTopology.start(false)
+
+        finish.await()
+
+        logger.info { "Processed $TOTAL_ITERATIONS end-to-end messages in ${System.currentTimeMillis() - start.get()}ms" }
+        kumulusTopology.stop()
+    }
+
+    class TestSpout : BaseRichSpout() {
+        var collector: SpoutOutputCollector? = null
+
+        var i = 0
+
+        override fun nextTuple() {
+            if (i < TOTAL_ITERATIONS) {
+                i++
+                logger.debug { "nextTuple() called in ${this.hashCode()}" }
+                this.collector?.emit(listOf(i, System.nanoTime()), i)
+            }
+        }
+
+        override fun open(conf: MutableMap<Any?, Any?>?, context: TopologyContext?, collector: SpoutOutputCollector?) {
+            this.collector = collector
+            start.compareAndSet(0L, System.currentTimeMillis())
+        }
+
+        override fun declareOutputFields(declarer: OutputFieldsDeclarer?) {
+            declarer?.declare(spoutFields)
+        }
+
+        override fun fail(msgId: Any?) {
+            logger.error { "Got fail for $msgId" }
+
+            if (msgId != null) {
+                logMsg(msgId)
+            }
+
+            super.fail(msgId)
+        }
+
+        override fun ack(msgId: Any?) {
+            logger.trace { "Got ack for $msgId" }
+
+            if (msgId != null) {
+                if (msgId as Int == TOTAL_ITERATIONS) {
+                    finish.countDown()
+                }
+                logMsg(msgId)
+            }
+
+            super.ack(msgId)
+        }
+
+        private val seen = HashSet<Any>()
+
+        fun logMsg(msgId: Any) {
+            assert(seen.add(msgId)) { "MessageId $msgId was acked twice" }
+        }
     }
 
     class TestBasicBolt(private val failing: Boolean = false) : BaseBasicBolt() {
