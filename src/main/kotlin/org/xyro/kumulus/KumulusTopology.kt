@@ -234,7 +234,7 @@ class KumulusTopology(
 
     // KumulusEmitter impl
     override fun getDestinations(tasks: List<Int>): List<KumulusComponent> {
-        return this.components.filter { tasks.contains(it.taskId) }
+        return tasks.map { taskToComponent[it]!! }
     }
 
     // KumulusEmitter impl
@@ -297,7 +297,7 @@ class KumulusTopology(
                 c.inUse.set(false)
             }
         } else {
-            logger.trace { "Component ${c.componentId}/${c.taskId} is currently busy" }
+            logger.error { "Component ${c.componentId}/${c.taskId} is currently busy" }
             if (onBusyBoltHook != null && message is ExecuteMessage) {
                 c.waitStart.compareAndSet(0, System.nanoTime())
             }

@@ -4,29 +4,25 @@ import org.apache.storm.Config
 import org.apache.storm.spout.SpoutOutputCollector
 import org.apache.storm.task.OutputCollector
 import org.apache.storm.task.TopologyContext
-import org.apache.storm.topology.BasicOutputCollector
 import org.apache.storm.topology.IRichBolt
 import org.apache.storm.topology.IRichSpout
 import org.apache.storm.topology.OutputFieldsDeclarer
-import org.apache.storm.topology.base.BaseBasicBolt
 import org.apache.storm.tuple.Fields
 import org.apache.storm.tuple.Tuple
 import org.apache.storm.utils.Utils
-import org.junit.Ignore
 import org.junit.Test
 import org.mockito.Matchers.eq
-import org.mockito.Mockito
 import org.mockito.Mockito.verify
 import org.xyro.kumulus.KumulusStormTransformer
+import org.xyro.kumulus.KumulusTopologyBuilder
 import java.io.Serializable
 import java.util.concurrent.ArrayBlockingQueue
 import java.util.concurrent.TimeUnit
 
 class KumulusTopologyBehaviorTest {
     @Test
-    @Ignore
     fun testMessageTimeout() {
-        val builder = org.apache.storm.topology.TopologyBuilder()
+        val builder = KumulusTopologyBuilder()
         val spout =  TestSpout(Output("field1"))
         builder.setSpout("spout", spout)
         builder.setBolt("bolt", TestBolt(Output()) { t, c ->
