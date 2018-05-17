@@ -32,16 +32,20 @@ class KumulusSpout(
         super.prepare()
     }
 
-    fun nextTuple() {
+    private fun nextTuple() {
         spout.nextTuple()
     }
 
-    fun ack(msgId: Any?) {
+    private fun ack(msgId: Any?) {
         spout.ack(msgId)
     }
 
-    fun fail(msgId: Any?) {
-        spout.fail(msgId)
+    private fun fail(msgId: Any?, timeoutComponents: List<String>) {
+        if (spout is KumulusTimeoutAwareSpout) {
+            spout.fail(msgId, timeoutComponents)
+        } else {
+            spout.fail(msgId)
+        }
     }
 
     fun activate() {
@@ -93,7 +97,7 @@ class KumulusSpout(
             if (ackMessage.ack) {
                 ack(ackMessage.spoutMessageId)
             } else {
-                fail(ackMessage.spoutMessageId)
+                fail(ackMessage.spoutMessageId, ackMessage.timeoutComponents)
             }
         }.let {
             if (it == null && isReady.get()) {

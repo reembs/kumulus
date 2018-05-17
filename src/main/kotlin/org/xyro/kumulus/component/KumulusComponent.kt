@@ -88,4 +88,9 @@ class BoltPrepareMessage(component: KumulusComponent, collector: KumulusBoltColl
 class ExecuteMessage(component: KumulusComponent, val tuple: KumulusTuple) :
         KumulusMessage(component)
 
-class AckMessage(spout: KumulusSpout, val spoutMessageId: Any?, val ack: Boolean) : KumulusMessage(spout)
+class AckMessage(
+        spout: KumulusSpout,
+        val spoutMessageId: Any?,
+        val ack: Boolean,
+        val timeoutComponents: List<String>
+) : KumulusMessage(spout)
