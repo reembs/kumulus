@@ -9,6 +9,7 @@ import org.xyro.kumulus.component.*
 import org.xyro.kumulus.graph.*
 import java.util.concurrent.*
 import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicInteger
 
 class KumulusTopology(
         private val components: List<KumulusComponent>,
@@ -29,6 +30,8 @@ class KumulusTopology(
     private val taskIdToComponent: Map<Int, KumulusComponent> = this.components
             .map { Pair(it.taskId, it) }
             .toMap()
+    private val atomicThreadsInUse = AtomicInteger(0)
+    private val atomicMaxThreadsInUse = AtomicInteger(0)
 
     internal val acker: KumulusAcker
     internal val busyPollSleepTime: Long = config[CONF_BUSY_POLL_SLEEP_TIME] as? Long ?: 1L
@@ -36,6 +39,15 @@ class KumulusTopology(
     var onBusyBoltHook: ((String, Int, Long, Any?) -> Unit)? = null
     var onBoltPrepareFinishHook: ((String, Int, Long) -> Unit)? = null
     var onReportErrorHook: ((String, Int, Throwable) -> Unit)? = null
+
+    val currentThreadsInUse: Int
+        get() = atomicThreadsInUse.get()
+
+    val maxThreadsInUse: Int
+        get() = atomicMaxThreadsInUse.get()
+
+    val maxQueueSize: Int
+        get() = boltExecutionPool.maxSize.get()
 
     init {
         this.acker = KumulusAcker(
@@ -137,6 +149,7 @@ class KumulusTopology(
      * @param block should the call block until the topology os stopped
      */
     fun start(block: Boolean = false) {
+        this.resetMetrics()
         val spouts = components.filter { it is KumulusSpout }.map { it as KumulusSpout }
         spouts.forEach { spout ->
             spout.start(this)
@@ -154,7 +167,8 @@ class KumulusTopology(
         synchronized(stopLock) {
             if (shutDownHook.count > 0) {
                 logger.info("Pool size: $poolSize")
-                logger.info("Max queue size: ${boltExecutionPool.maxSize.get()}")
+                logger.info("Max queue size: $maxQueueSize")
+                logger.info("Max concurrent threads used: $maxThreadsInUse")
                 logger.info { "Deactivating all spouts" }
                 components.filter { it is KumulusSpout }.forEach {
                     it.isReady.set(false)
@@ -178,8 +192,14 @@ class KumulusTopology(
     }
 
     // KumulusEmitter impl
-    override fun completeMessageProcessing(spout: KumulusSpout, spoutMessageId: Any?, ack: Boolean) {
-        spout.queue.add(AckMessage(spout, spoutMessageId, ack))
+    override fun completeMessageProcessing(
+            spout: KumulusSpout,
+            spoutMessageId: Any?,
+            ack: Boolean,
+            timeoutTasks: List<Int>
+    ) {
+        val timeoutComponents = timeoutTasks.map { this.taskIdToComponent[it]!!.componentId }
+        spout.queue.add(AckMessage(spout, spoutMessageId, ack, timeoutComponents))
     }
 
     fun getGraph() : ComponentGraph<GraphNode, GraphEdge<GraphNode>> {
@@ -196,6 +216,12 @@ class KumulusTopology(
     private fun handleQueueItem(message: KumulusMessage) {
         val c = message.component
         if (c.inUse.compareAndSet(false, true)) {
+            val currentThreadsInAction = atomicThreadsInUse.incrementAndGet()
+            if (currentThreadsInAction > atomicMaxThreadsInUse.get()) {
+                atomicMaxThreadsInUse.updateAndGet { currentMax ->
+                    currentThreadsInAction.takeIf { it > currentMax } ?: currentMax
+                }
+            }
             try {
                 when (message) {
                     is PrepareMessage<*> -> {
@@ -240,6 +266,7 @@ class KumulusTopology(
                 throw e
             } finally {
                 c.inUse.set(false)
+                atomicThreadsInUse.decrementAndGet()
             }
         } else {
             logger.trace { "Component ${c.componentId}/${c.taskId} is currently busy" }
@@ -248,6 +275,11 @@ class KumulusTopology(
             }
             boltExecutionPool.enqueue(message)
         }
+    }
+
+    fun resetMetrics() {
+        this.atomicMaxThreadsInUse.set(0)
+        this.boltExecutionPool.maxSize.set(0)
     }
 }
 

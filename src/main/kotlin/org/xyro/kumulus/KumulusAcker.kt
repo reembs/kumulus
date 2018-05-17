@@ -125,10 +125,20 @@ class KumulusAcker(
 
     private fun forceComplete(spoutMessageId: Any) {
         state[spoutMessageId]?.let { messageState ->
-            synchronized(completeLock) {
-                state.remove(spoutMessageId)
-            }?.let {
-                notifySpout(messageState.spout, spoutMessageId, messageState.ack.get())
+            var timeoutTasks = listOf<Int>()
+
+            val notify = synchronized(completeLock) {
+                val removedState = state.remove(spoutMessageId)
+
+                timeoutTasks = removedState
+                        ?.pendingTasks
+                        ?.map { it.first } ?: listOf()
+
+                return@synchronized removedState != null
+            }
+
+            if (notify) {
+                notifySpout(messageState.spout, spoutMessageId, false, timeoutTasks)
                 decrementPending()
             }
         }
@@ -164,7 +174,11 @@ class KumulusAcker(
     }
 
     private fun notifySpout(spout: KumulusSpout, spoutMessageId: Any?, ack: Boolean) {
-        emitter.completeMessageProcessing(spout, spoutMessageId, ack)
+        this.notifySpout(spout, spoutMessageId, ack, listOf())
+    }
+
+    private fun notifySpout(spout: KumulusSpout, spoutMessageId: Any?, ack: Boolean, timeoutTasks: List<Int>) {
+        emitter.completeMessageProcessing(spout, spoutMessageId, ack, timeoutTasks)
     }
 
     private fun decrementPending() {

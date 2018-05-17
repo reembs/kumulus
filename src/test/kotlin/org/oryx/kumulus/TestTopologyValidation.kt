@@ -74,8 +74,9 @@ class TestTopologyValidation {
     }
 }
 
-class DummySpout : BaseRichSpout {
+open class DummySpout : BaseRichSpout {
     private val declare: (declarer: OutputFieldsDeclarer) -> Unit
+    protected lateinit var collector: SpoutOutputCollector
 
     constructor() : this({})
     constructor(declare: (declarer: OutputFieldsDeclarer) -> Unit) : super() {
@@ -83,13 +84,16 @@ class DummySpout : BaseRichSpout {
     }
 
     override fun nextTuple() {}
-    override fun open(conf: MutableMap<Any?, Any?>?, context: TopologyContext?, collector: SpoutOutputCollector?) {}
+
+    override fun open(conf: MutableMap<Any?, Any?>?, context: TopologyContext?, collector: SpoutOutputCollector?) {
+        this.collector = collector!!
+    }
     override fun declareOutputFields(declarer: OutputFieldsDeclarer) {
         declare(declarer)
     }
 }
 
-class DummyBolt : BaseBasicBolt {
+open class DummyBolt : BaseBasicBolt {
     private val declare: (declarer: OutputFieldsDeclarer) -> Unit
 
     constructor() : this({})
@@ -97,7 +101,7 @@ class DummyBolt : BaseBasicBolt {
         this.declare = declare
     }
 
-    override fun execute(input: Tuple?, collector: BasicOutputCollector?) {}
+    override fun execute(input: Tuple, collector: BasicOutputCollector) {}
     override fun declareOutputFields(declarer: OutputFieldsDeclarer) {
         declare(declarer)
     }

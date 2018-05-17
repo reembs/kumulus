@@ -6,5 +6,10 @@ import org.xyro.kumulus.component.KumulusSpout
 interface KumulusEmitter {
     fun getDestinations(tasks: List<Int>): List<KumulusComponent>
     fun execute(destComponent: KumulusComponent, kumulusTuple: KumulusTuple)
-    fun completeMessageProcessing(spout: KumulusSpout, spoutMessageId: Any?, ack: Boolean)
+    fun completeMessageProcessing(
+            spout: KumulusSpout,
+            spoutMessageId: Any?,
+            ack: Boolean,
+            timeoutTasks: List<Int>
+    )
 }
