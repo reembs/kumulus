@@ -40,12 +40,15 @@ class KumulusTopology(
     var onBoltPrepareFinishHook: ((String, Int, Long) -> Unit)? = null
     var onReportErrorHook: ((String, Int, Throwable) -> Unit)? = null
 
+    @Suppress("MemberVisibilityCanBePrivate", "unused")
     val currentThreadsInUse: Int
         get() = atomicThreadsInUse.get()
 
+    @Suppress("MemberVisibilityCanBePrivate")
     val maxThreadsInUse: Int
         get() = atomicMaxThreadsInUse.get()
 
+    @Suppress("MemberVisibilityCanBePrivate")
     val maxQueueSize: Int
         get() = boltExecutionPool.maxSize.get()
 
@@ -60,24 +63,10 @@ class KumulusTopology(
 
     companion object {
         private val logger = KotlinLogging.logger {}
-
-        @JvmField
-        val CONF_EXTRA_ACKING = "kumulus.allow-extra-acking"
-        @JvmField
-        @Deprecated("Not in use anymore")
-        val CONF_THREAD_POOL_KEEP_ALIVE = "kumulus.thread_pool.keep_alive_secs"
-        @JvmField
-        @Deprecated("Not in use anymore")
-        val CONF_THREAD_POOL_QUEUE_SIZE = "kumulus.thread_pool.queue.size"
-        @JvmField
-        @Deprecated("Not in use anymore")
-        val CONF_THREAD_POOL_MAX_SIZE = "kumulus.thread_pool.max_size"
-        @JvmField
-        val CONF_THREAD_POOL_CORE_SIZE = "kumulus.thread_pool.core_pool_size"
-        @JvmField
-        val CONF_BUSY_POLL_SLEEP_TIME = "kumulus.spout.not-ready-sleep"
-        @JvmField
-        val CONF_SHUTDOWN_TIMEOUT_SECS = "kumulus.shutdown.timeout.secs"
+        const val CONF_EXTRA_ACKING = "kumulus.allow-extra-acking"
+        const val CONF_THREAD_POOL_CORE_SIZE = "kumulus.thread_pool.core_pool_size"
+        const val CONF_BUSY_POLL_SLEEP_TIME = "kumulus.spout.not-ready-sleep"
+        const val CONF_SHUTDOWN_TIMEOUT_SECS = "kumulus.shutdown.timeout.secs"
     }
 
     /**
@@ -206,6 +195,7 @@ class KumulusTopology(
         return getGraph(defaultNodeFactory, defaultEdgeFactory)
     }
 
+    @Suppress("MemberVisibilityCanBePrivate")
     fun <N: GraphNode, E: GraphEdge<N>> getGraph(
             nodeFactory : ComponentGraphNodeFactory<N>,
             edgeFactory : ComponentGraphEdgeFactory<N, E>
@@ -277,6 +267,7 @@ class KumulusTopology(
         }
     }
 
+    @Suppress("MemberVisibilityCanBePrivate")
     fun resetMetrics() {
         this.atomicMaxThreadsInUse.set(0)
         this.boltExecutionPool.maxSize.set(0)

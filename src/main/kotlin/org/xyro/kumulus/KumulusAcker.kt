@@ -43,6 +43,10 @@ class KumulusAcker(
                         "messageId $messageId is currently being processes. Duplicate IDs are not allowed"
                     }
                     state[messageId] = messageState
+                    waitForSpoutAvailability()
+                    val currentPending = currentPending.incrementAndGet()
+                    if (maxSpoutPending > 0)
+                        assert(currentPending <= maxSpoutPending) { "Exceeding max-spout-pending of $maxSpoutPending, current $currentPending" }
                 }
 
                 if (messageTimeoutMillis > 0) {
@@ -54,10 +58,6 @@ class KumulusAcker(
                         }
                     }, messageTimeoutMillis, TimeUnit.MILLISECONDS)
                 }
-
-                val currentPending = currentPending.incrementAndGet()
-                if (maxSpoutPending > 0)
-                    assert(currentPending <= maxSpoutPending) { "Exceeding max-spout-pending" }
             }
         }
     }
@@ -147,28 +147,33 @@ class KumulusAcker(
     private fun checkComplete(messageState: MessageState, component: KumulusComponent, input: Tuple?) {
         val key = component.taskId to input
         (input as TupleImpl).spoutMessageId?.let { spoutMessageId ->
-            if (synchronized(completeLock) {
-                assert(messageState.pendingTasks.remove(key)) {
-                    "Key $key was not found in execution map for $component" }
-                logger.debug { "Pending task from $component for message $spoutMessageId was completed. " +
-                        "Current pending tuples are:" + messageState.pendingTasks.let {
-                    if (it.isEmpty()) {
-                        " Empty\n"
-                    } else {
-                        val sb = StringBuilder("\n")
-                        it.forEach {
-                            sb.append("${it.first}: ${it.second}\n")
-                        }
-                        sb.toString()
-                    }
-                }}
-                messageState.pendingTasks.isEmpty()
-            }) {
+            assert(messageState.pendingTasks.remove(key)) {
+                "Key $key was not found in execution map for $component"
+            }
+            debugMessage(component, spoutMessageId, messageState)
+            if (messageState.pendingTasks.isEmpty()) {
                 logger.debug { "[${component.componentId}/${component.taskId}] " +
                             "Finished with messageId $spoutMessageId" }
                 state.remove(spoutMessageId)
                 notifySpout(messageState.spout, spoutMessageId, messageState.ack.get())
                 decrementPending()
+            }
+        }
+    }
+
+    private fun debugMessage(component: KumulusComponent, spoutMessageId: Any, messageState: MessageState) {
+        logger.debug {
+            "Pending task from $component for message $spoutMessageId was completed. " +
+                    "Current pending tuples are:" + messageState.pendingTasks.let {
+                if (it.isEmpty()) {
+                    " Empty\n"
+                } else {
+                    val sb = StringBuilder("\n")
+                    it.forEach {
+                        sb.append("${it.first}: ${it.second}\n")
+                    }
+                    sb.toString()
+                }
             }
         }
     }
