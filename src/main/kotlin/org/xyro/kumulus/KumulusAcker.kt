@@ -17,7 +17,7 @@ class KumulusAcker(
         private val maxSpoutPending: Long,
         private val allowExtraAcking: Boolean,
         private val messageTimeoutMillis: Long,
-        private val busyPollSleepTime: Long
+        private val spoutAvailabilityCheckTimeout: Long
 ) {
     companion object {
         private val logger = KotlinLogging.logger {}
@@ -117,7 +117,7 @@ class KumulusAcker(
             synchronized(waitObject) {
                 if (currentPending.get() >= maxSpoutPending) {
                     logger.trace { "Waiting for spout availability" }
-                    waitObject.wait(busyPollSleepTime)
+                    waitObject.wait(spoutAvailabilityCheckTimeout)
                 }
             }
             return currentPending.get() < maxSpoutPending

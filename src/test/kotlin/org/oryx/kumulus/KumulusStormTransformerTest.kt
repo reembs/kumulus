@@ -17,6 +17,7 @@ import org.apache.storm.tuple.Tuple
 import org.junit.Ignore
 import org.junit.Test
 import org.xyro.kumulus.KumulusStormTransformer
+import org.xyro.kumulus.KumulusTopology
 import java.io.FileOutputStream
 import java.io.PrintWriter
 import java.util.concurrent.ConcurrentHashMap
@@ -223,10 +224,12 @@ class KumulusStormTransformerTest {
 
         val config: MutableMap<String, Any> = mutableMapOf()
         config[Config.TOPOLOGY_MAX_SPOUT_PENDING] = 1
+        config[KumulusTopology.CONF_THREAD_POOL_CORE_SIZE] = 10
+        config[KumulusTopology.CONF_BOLT_QUEUE_PUSHBACK_WAIT] = 0L
 
         builder.setSpout("spout", TestSpout())
 
-        val size = 1000
+        val size = 100
 
         val boltDeclarer = builder.setBolt("join", object : BaseBasicBolt() {
             var pending: Int = size
@@ -253,7 +256,9 @@ class KumulusStormTransformerTest {
             val boltName = "bolt-$i"
             builder.setBolt(boltName, object: BaseBasicBolt(){
                 override fun execute(input: Tuple, collector: BasicOutputCollector) {
-                    collector.emit(input.select(spoutFields))
+                    for (j in 0..9) {
+                        collector.emit(input.select(spoutFields))
+                    }
                 }
                 override fun declareOutputFields(declarer: OutputFieldsDeclarer) {
                     declarer.declare(spoutFields)
@@ -276,6 +281,7 @@ class KumulusStormTransformerTest {
         val kumulusTopology =
                 KumulusStormTransformer.initializeTopology(builder.createTopology()!!, config, "testtopology")
         kumulusTopology.prepare(30, TimeUnit.SECONDS)
+        kumulusTopology.resetMetrics()
         kumulusTopology.start(false)
 
         finish.await()

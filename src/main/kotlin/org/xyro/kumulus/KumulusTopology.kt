@@ -20,10 +20,6 @@ class KumulusTopology(
     private val poolSize = (config[CONF_THREAD_POOL_CORE_SIZE] as? Long ?: 1L).toInt()
     private val boltExecutionPool = ExecutionPool(poolSize, ::handleQueueItem)
     private val stopLock = Any()
-    private val rejectedExecutionHandler = RejectedExecutionHandler { _, _ ->
-        logger.error { "Execution was rejected" }
-    }
-    private val tickExecutor = ScheduledThreadPoolExecutor(1, rejectedExecutionHandler)
     private val started = AtomicBoolean(false)
     private val systemComponent = components.first { it.taskId == Constants.SYSTEM_TASK_ID.toInt() }
     private val shutDownHook = CountDownLatch(1)
@@ -35,8 +31,16 @@ class KumulusTopology(
     private val atomicThreadsInUse = AtomicInteger(0)
     private val atomicMaxThreadsInUse = AtomicInteger(0)
 
+    private val scheduledExecutorPoolSize: Int =
+            (config[CONF_SCHEDULED_EXECUTOR_THREAD_POOL_SIZE] as? Long ?: 1L).toInt()
+    private val rejectedExecutionHandler = RejectedExecutionHandler { _, _ ->
+        logger.error { "Execution was rejected, current pool size: $scheduledExecutorPoolSize" }
+    }
+    private val scheduledExecutor = ScheduledThreadPoolExecutor(scheduledExecutorPoolSize, rejectedExecutionHandler)
+
     internal val acker: KumulusAcker
-    internal val busyPollSleepTime: Long = config[CONF_BUSY_POLL_SLEEP_TIME] as? Long ?: 1L
+    internal val readyPollSleepTime: Long = config[CONF_READY_POLL_SLEEP] as? Long ?: 100L
+    internal val queuePushbackWait: Long = config[CONF_BOLT_QUEUE_PUSHBACK_WAIT] as? Long ?: 0L
 
     var onBusyBoltHook: ((String, Int, Long, Any?) -> Unit)? = null
     var onBoltPrepareFinishHook: ((String, Int, Long) -> Unit)? = null
@@ -60,7 +64,7 @@ class KumulusTopology(
                 maxSpoutPending,
                 config[CONF_EXTRA_ACKING] as? Boolean ?: false,
                 (config[Config.TOPOLOGY_MESSAGE_TIMEOUT_SECS] as? Long)?.times(1000) ?: 0L,
-                busyPollSleepTime
+                config[CONF_SPOUT_AVAILABILITY_PASS_TIMEOUT] as? Long ?: 50L
         )
     }
 
@@ -68,8 +72,14 @@ class KumulusTopology(
         private val logger = KotlinLogging.logger {}
         const val CONF_EXTRA_ACKING = "kumulus.allow-extra-acking"
         const val CONF_THREAD_POOL_CORE_SIZE = "kumulus.thread_pool.core_pool_size"
-        const val CONF_BUSY_POLL_SLEEP_TIME = "kumulus.spout.not-ready-sleep"
+        const val CONF_READY_POLL_SLEEP = "kumulus.spout.ready.poll.sleep"
+        const val CONF_SPOUT_AVAILABILITY_PASS_TIMEOUT = "kumulus.spout.availability.timeout"
+        const val CONF_BOLT_QUEUE_PUSHBACK_WAIT = "kumulus.bolt.pushback.wait"
         const val CONF_SHUTDOWN_TIMEOUT_SECS = "kumulus.shutdown.timeout.secs"
+        const val CONF_SCHEDULED_EXECUTOR_THREAD_POOL_SIZE = "kumulus.executor.scheduled-executor.pool-size"
+
+        @Deprecated("Use CONF_READY_POLL_SLEEP instead")
+        const val CONF_BUSY_POLL_SLEEP_TIME = CONF_READY_POLL_SLEEP
     }
 
     /**
@@ -89,7 +99,7 @@ class KumulusTopology(
             if (allReady()) {
                 break
             }
-            Thread.sleep(busyPollSleepTime)
+            Thread.sleep(readyPollSleepTime)
             throwIfNeeded()
         }
 
@@ -117,7 +127,7 @@ class KumulusTopology(
 
             if (component is KumulusBolt) {
                 component.tickSecs?.toLong()?.let { tickSecs ->
-                    tickExecutor.scheduleWithFixedDelay({
+                    scheduledExecutor.scheduleWithFixedDelay({
                         if (started.get()) {
                             try {
                                 val tuple = KumulusTuple(
@@ -265,7 +275,13 @@ class KumulusTopology(
             if (onBusyBoltHook != null && message is ExecuteMessage) {
                 c.waitStart.compareAndSet(0, System.nanoTime())
             }
-            boltExecutionPool.enqueue(message)
+            if (queuePushbackWait <= 0L) {
+                boltExecutionPool.enqueue(message)
+            } else {
+                scheduledExecutor.schedule({
+                    boltExecutionPool.enqueue(message)
+                }, queuePushbackWait, TimeUnit.MILLISECONDS)
+            }
         }
     }
 

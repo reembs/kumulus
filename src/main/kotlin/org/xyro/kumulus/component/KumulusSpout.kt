@@ -71,7 +71,7 @@ class KumulusSpout(
                         activate()
                         break
                     }
-                    Thread.sleep(topology.busyPollSleepTime)
+                    Thread.sleep(topology.readyPollSleepTime)
                 }
                 while (true) {
                     mainLoopMethod(topology.acker)
