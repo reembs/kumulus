@@ -10,7 +10,7 @@ import org.xyro.kumulus.component.KumulusComponent
 
 class KumulusBoltCollector(
         component: KumulusComponent,
-        emitter: KumulusEmitter,
+        private val emitter: KumulusEmitter,
         acker: KumulusAcker,
         errorHandler: ((String, Int, Throwable) -> Unit)?
 ) : KumulusCollector<KumulusBolt>(
@@ -32,10 +32,18 @@ class KumulusBoltCollector(
     }
 
     override fun fail(input: Tuple?) {
-        acker.fail(component, input)
+        try {
+            acker.fail(component, input)
+        } catch (t: Throwable) {
+            emitter.throwException(t)
+        }
     }
 
     override fun ack(input: Tuple?) {
-        acker.ack(component, input)
+        try {
+            acker.ack(component, input)
+        } catch (t: Throwable) {
+            emitter.throwException(t)
+        }
     }
 }

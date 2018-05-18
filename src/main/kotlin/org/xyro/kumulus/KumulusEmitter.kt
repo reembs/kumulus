@@ -12,4 +12,5 @@ interface KumulusEmitter {
             ack: Boolean,
             timeoutTasks: List<Int>
     )
+    fun throwException(t: Throwable)
 }

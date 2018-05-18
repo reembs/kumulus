@@ -17,19 +17,20 @@ import java.util.*
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.atomic.AtomicLong
 import java.util.concurrent.atomic.AtomicReference
 import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 
-class TestTimeoutSpoutHookMultipleAcking {
+class TestMultipleSpoutsMaxPendingLimit {
     @Test
     fun testMultipleSpouts() {
         val builder = org.apache.storm.topology.TopologyBuilder()
         val config: MutableMap<String, Any> = mutableMapOf()
 
-        config[Config.TOPOLOGY_MAX_SPOUT_PENDING] = 4L
+        config[Config.TOPOLOGY_MAX_SPOUT_PENDING] = 1L
         config[Config.TOPOLOGY_MESSAGE_TIMEOUT_SECS] = 1L
         config[KumulusTopology.CONF_THREAD_POOL_CORE_SIZE] = 5L
 
@@ -37,7 +38,7 @@ class TestTimeoutSpoutHookMultipleAcking {
         builder.setSpout("spout2", TestSpout())
         builder.setSpout("spout3", TestSpout())
 
-        builder.setBolt("acking-bolt", TestBolt(false))
+        builder.setBolt("acking-bolt", TestBolt())
                 .allGrouping("spout")
                 .allGrouping("spout2")
                 .allGrouping("spout3")
@@ -50,6 +51,11 @@ class TestTimeoutSpoutHookMultipleAcking {
         Thread.sleep(5000)
 
         // no asserts fail
+
+        kumulusTopology.stop()
+
+        logger.info { "Executed ${executions.get()} times, no errors" }
+        assertTrue { executions.get() > 100 }
     }
 
     class TestSpout: DummySpout({ it.declare(Fields("id")) }), KumulusTimeoutAwareSpout {
@@ -68,14 +74,12 @@ class TestTimeoutSpoutHookMultipleAcking {
         }
     }
 
-    class TestBolt(private  val shouldTimeout: Boolean): IRichBolt {
+    class TestBolt: IRichBolt {
         private lateinit var collector: OutputCollector
 
         override fun execute(input: Tuple) {
-            if (!shouldTimeout) {
-                logger.info { "Acking ${input.getValueByField("id")}" }
-                collector.ack(input)
-            }
+            executions.incrementAndGet()
+            collector.ack(input)
         }
 
         override fun prepare(p0: MutableMap<Any?, Any?>?, p1: TopologyContext?, p2: OutputCollector) {
@@ -88,5 +92,6 @@ class TestTimeoutSpoutHookMultipleAcking {
 
     companion object {
         private val logger = KotlinLogging.logger {}
+        private val executions = AtomicInteger(0)
     }
 }

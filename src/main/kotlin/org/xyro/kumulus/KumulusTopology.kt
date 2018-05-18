@@ -10,6 +10,7 @@ import org.xyro.kumulus.graph.*
 import java.util.concurrent.*
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicInteger
+import java.util.concurrent.atomic.AtomicReference
 
 class KumulusTopology(
         private val components: List<KumulusComponent>,
@@ -26,6 +27,7 @@ class KumulusTopology(
     private val started = AtomicBoolean(false)
     private val systemComponent = components.first { it.taskId == Constants.SYSTEM_TASK_ID.toInt() }
     private val shutDownHook = CountDownLatch(1)
+    private val crashException = AtomicReference<Throwable>()
     private val shutdownTimeoutSecs = config[CONF_SHUTDOWN_TIMEOUT_SECS] as? Long ?: 10L
     private val taskIdToComponent: Map<Int, KumulusComponent> = this.components
             .map { Pair(it.taskId, it) }
@@ -57,7 +59,8 @@ class KumulusTopology(
                 this,
                 maxSpoutPending,
                 config[CONF_EXTRA_ACKING] as? Boolean ?: false,
-                (config[Config.TOPOLOGY_MESSAGE_TIMEOUT_SECS] as? Long)?.times(1000) ?: 0L
+                (config[Config.TOPOLOGY_MESSAGE_TIMEOUT_SECS] as? Long)?.times(1000) ?: 0L,
+                busyPollSleepTime
         )
     }
 
@@ -87,6 +90,7 @@ class KumulusTopology(
                 break
             }
             Thread.sleep(busyPollSleepTime)
+            throwIfNeeded()
         }
 
         if (!allReady()) {
@@ -146,6 +150,7 @@ class KumulusTopology(
         started.set(true)
         if (block) {
             shutDownHook.await()
+            throwIfNeeded()
         }
     }
 
@@ -153,20 +158,14 @@ class KumulusTopology(
      * Stop the topology
      */
     fun stop() {
-        synchronized(stopLock) {
-            if (shutDownHook.count > 0) {
-                logger.info("Pool size: $poolSize")
-                logger.info("Max queue size: $maxQueueSize")
-                logger.info("Max concurrent threads used: $maxThreadsInUse")
-                logger.info { "Deactivating all spouts" }
-                components.filter { it is KumulusSpout }.forEach {
-                    it.isReady.set(false)
-                }
-                acker.releaseSpoutBlocks()
-                logger.info { "Shutting down thread pool and awaiting termination (max: ${shutdownTimeoutSecs}s)" }
-                logger.info { "Execution engine threads have been shut down" }
-                shutDownHook.countDown()
-            }
+        stopInternal()
+        throwIfNeeded()
+    }
+
+    private fun throwIfNeeded() {
+        val exception = crashException.getAndSet(null)
+        if (exception != null) {
+            throw KumulusTopologyCrashedException(exception)
         }
     }
 
@@ -189,6 +188,13 @@ class KumulusTopology(
     ) {
         val timeoutComponents = timeoutTasks.map { this.taskIdToComponent[it]!!.componentId }
         spout.queue.add(AckMessage(spout, spoutMessageId, ack, timeoutComponents))
+    }
+
+    // KumulusEmitter impl
+    override fun throwException(t: Throwable) {
+        logger.error("Exception from emitter: $t", t)
+        crashException.compareAndSet(null, t)
+        this.stopInternal()
     }
 
     fun getGraph() : ComponentGraph<GraphNode, GraphEdge<GraphNode>> {
@@ -228,11 +234,8 @@ class KumulusTopology(
                         }
                     }
                     is ExecuteMessage -> {
-                        assert(!c.isSpout()) {
-                            logger.error {
-                                "Execute message got to a spout '${c.componentId}', " +
-                                        "this shouldn't happen."
-                            }
+                        if(c.isSpout()) {
+                            throw RuntimeException("Execute message got to a spout '${c.componentId}', this shouldn't happen.")
                         }
                         onBusyBoltHook?.let {
                             val waitNanos = c.waitStart.getAndSet(0)
@@ -251,9 +254,8 @@ class KumulusTopology(
                         throw UnsupportedOperationException("Operation of type ${c.javaClass.canonicalName} is unsupported")
                 }
             } catch (e: Exception) {
-                logger.error("An uncaught exception in component '${c.componentId}' has forced a Kumulus shutdown", e)
-                this.stop()
-                throw e
+                logger.error("An uncaught exception in component '${c.componentId}' had forced a Kumulus shutdown", e)
+                throwException(e)
             } finally {
                 c.inUse.set(false)
                 atomicThreadsInUse.decrementAndGet()
@@ -272,5 +274,28 @@ class KumulusTopology(
         this.atomicMaxThreadsInUse.set(0)
         this.boltExecutionPool.maxSize.set(0)
     }
+
+    private fun stopInternal() {
+        synchronized(stopLock) {
+            if (shutDownHook.count > 0) {
+                logger.info("Pool size: $poolSize")
+                logger.info("Max queue size: $maxQueueSize")
+                logger.info("Max concurrent threads used: $maxThreadsInUse")
+                logger.info { "Deactivating all spouts" }
+                components.filter { it is KumulusSpout }.forEach {
+                    it.isReady.set(false)
+                }
+                acker.releaseSpoutBlocks()
+                logger.info { "Shutting down thread pool and awaiting termination (max: ${shutdownTimeoutSecs}s)" }
+                logger.info { "Execution engine threads have been shut down" }
+                shutDownHook.countDown()
+            }
+        }
+    }
+
+    class KumulusTopologyCrashedException(exception: Throwable?) : RuntimeException(
+            "Kumulus topology had crashed due to an uncaught exception",
+            exception
+    )
 }
 

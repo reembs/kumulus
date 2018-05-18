@@ -331,7 +331,7 @@ class KumulusStormTransformerTest {
 
         private val seen = HashSet<Any>()
 
-        fun logMsg(msgId: Any) {
+        private fun logMsg(msgId: Any) {
             assert(seen.add(msgId)) { "MessageId $msgId was acked twice" }
         }
     }
