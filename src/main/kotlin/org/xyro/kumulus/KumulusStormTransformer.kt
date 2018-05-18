@@ -174,10 +174,10 @@ class KumulusStormTransformer {
                         is IRichBolt -> {
                             KumulusBolt(config, context, componentInstance, componentCommon).apply {
                                 (componentInstance.componentConfiguration ?: mapOf())[Config.TOPOLOGY_TICK_TUPLE_FREQ_SECS]?.let { secs ->
-                                    assert(secs is Number)
-                                    (secs as Number).let {
-                                        this.tickSecs = secs
+                                    if(secs !is Number) {
+                                        throw IllegalArgumentException("Config.TOPOLOGY_TICK_TUPLE_FREQ_SECS must be a number. Got: $secs")
                                     }
+                                    this.tickSecs = secs
                                 }
                             }
                         }

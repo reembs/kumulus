@@ -74,15 +74,19 @@ abstract class KumulusCollector<T: KumulusComponent>(
                 ?.toSet()
                 ?.filter { it != null }
                 ?.apply {
-                    assert(this.size <= 1) { "Found more than a single message ID in emitted anchors: $anchors" }
+                    if(this.size > 1) {
+                        logger.debug { "Found more than a single message ID in emitted anchors: $anchors" }
+                    }
                 }
                 ?.firstOrNull()
         return componentEmit(streamId, tuple, messageId)
     }
 
     fun emit(streamId: String?, tuple: MutableList<Any>, messageId: Any?): MutableList<Int> {
-        assert(component is KumulusSpout) { "Bolts wrong emit method called for ${component.componentId}/${component.taskId}" }
-        acker.startTree(component as KumulusSpout, messageId)
+        if(component !is KumulusSpout) {
+            throw RuntimeException("Bolts wrong emit method called for ${component.componentId}/${component.taskId}")
+        }
+        acker.startTree(component, messageId)
         return componentEmit(streamId, tuple, messageId!!)
     }
 }

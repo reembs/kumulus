@@ -71,7 +71,7 @@ class KumulusSpout(
                         activate()
                         break
                     }
-                    Thread.sleep(topology.busyPollSleepTime)
+                    Thread.sleep(topology.readyPollSleepTime)
                 }
                 while (true) {
                     mainLoopMethod(topology.acker)
@@ -81,10 +81,8 @@ class KumulusSpout(
                     }
                 }
             } catch (e: Exception) {
-                logger.error("An uncaught exception in spout '$componentId' (taskId: $taskId) has forced a Kumulus shutdown", e)
-                spout.deactivate()
-                topology.stop()
-                throw e
+                logger.error("An uncaught exception in spout '$componentId' (taskId: $taskId) had forced a Kumulus shutdown", e)
+                topology.throwException(e)
             }
         }.apply {
             isDaemon = true
@@ -101,14 +99,15 @@ class KumulusSpout(
             }
         }.let {
             if (it == null && isReady.get()) {
-                acker.waitForSpoutAvailability()
-                if (inUse.compareAndSet(false, true)) {
-                    try {
-                        if (isReady.get()) {
-                            nextTuple()
+                if (acker.waitForSpoutAvailability()) {
+                    if (inUse.compareAndSet(false, true)) {
+                        try {
+                            if (isReady.get()) {
+                                nextTuple()
+                            }
+                        } finally {
+                            inUse.set(false)
                         }
-                    } finally {
-                        inUse.set(false)
                     }
                 }
             }

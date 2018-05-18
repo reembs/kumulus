@@ -24,6 +24,7 @@ class TestAnchoringBehavior {
         val config: MutableMap<String, Any> = mutableMapOf()
         config[Config.TOPOLOGY_MAX_SPOUT_PENDING] = 1L
         config[KumulusTopology.CONF_THREAD_POOL_CORE_SIZE] = 5L
+        config[KumulusTopology.CONF_BOLT_QUEUE_PUSHBACK_WAIT] = 10L
 
         builder.setSpout("spout", LatencyDeltaSpout())
 
@@ -49,7 +50,7 @@ class TestAnchoringBehavior {
         logger.info { "Ran ${calledCount.get()} times" }
         assertTrue { calledCount.get() > 1000 }
         logger.info { "Max delay: ${maxWait.get()}ms" }
-        assertTrue { maxWait.get() < 100 }
+        assertTrue { maxWait.get() < 300 }
     }
 
 
@@ -57,24 +58,26 @@ class TestAnchoringBehavior {
         it.declare(Fields("id"))
     }) {
         private var index: Int = 0
-        private var lastCall: Long = 0
+        private var lastCall: Long? = 0
 
         override fun open(conf: MutableMap<Any?, Any?>?, context: TopologyContext?, collector: SpoutOutputCollector?) {
             super.open(conf, context, collector)
             this.index = 0
-            this.lastCall = System.nanoTime()
+            this.lastCall = null
         }
 
         override fun nextTuple() {
             val now = System.nanoTime()
-            val tookMillis = TimeUnit.NANOSECONDS.toMillis(now - this.lastCall)
-            maxWait.updateAndGet { v ->
-                tookMillis.takeIf { tookMillis > v } ?: v
+            if (this.lastCall != null) {
+                val tookMillis = TimeUnit.NANOSECONDS.toMillis(now - this.lastCall!!)
+                maxWait.updateAndGet { v ->
+                    tookMillis.takeIf { tookMillis > v } ?: v
+                }
+                if (tookMillis > 100) {
+                    logger.error { "Took $tookMillis to nextTuple" }
+                }
             }
             calledCount.incrementAndGet()
-            if (tookMillis > 100) {
-                logger.error { "Took $tookMillis to nextTuple" }
-            }
             this.lastCall = now
             val messageId = ++index
             collector.emit(listOf(messageId), messageId)

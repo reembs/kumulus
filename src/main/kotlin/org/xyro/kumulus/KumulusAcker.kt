@@ -16,7 +16,8 @@ class KumulusAcker(
         private val emitter: KumulusEmitter,
         private val maxSpoutPending: Long,
         private val allowExtraAcking: Boolean,
-        private val messageTimeoutMillis: Long
+        private val messageTimeoutMillis: Long,
+        private val spoutAvailabilityCheckTimeout: Long
 ) {
     companion object {
         private val logger = KotlinLogging.logger {}
@@ -29,7 +30,9 @@ class KumulusAcker(
     private val timeoutExecutor = ScheduledThreadPoolExecutor(1)
 
     init {
-        assert(maxSpoutPending >= 0)
+        if(maxSpoutPending < 0) {
+            throw IllegalArgumentException("maxSpoutPending = $maxSpoutPending")
+        }
     }
 
     fun startTree(component: KumulusSpout, messageId: Any?) {
@@ -39,10 +42,21 @@ class KumulusAcker(
         } else {
             MessageState(component).let { messageState ->
                 synchronized(completeLock) {
-                    assert(state[messageId] == null) {
-                        "messageId $messageId is currently being processes. Duplicate IDs are not allowed"
+                    if(state[messageId] != null) {
+                        logger.error { "messageId $messageId is currently being processes. Duplicate IDs are not allowed" }
+                        throw RuntimeException("Duplicate ID: $messageId")
                     }
                     state[messageId] = messageState
+                    waitForSpoutAvailability()
+                    val currentPending = currentPending.incrementAndGet()
+                    if (maxSpoutPending > 0) {
+                        if (currentPending > maxSpoutPending) {
+                            logger.error { "Exceeding max-spout-pending of $maxSpoutPending, current $currentPending" }
+                            assert(false) {
+                                "Exceeding max-spout-pending of $maxSpoutPending, current $currentPending"
+                            }
+                        }
+                    }
                 }
 
                 if (messageTimeoutMillis > 0) {
@@ -54,10 +68,6 @@ class KumulusAcker(
                         }
                     }, messageTimeoutMillis, TimeUnit.MILLISECONDS)
                 }
-
-                val currentPending = currentPending.incrementAndGet()
-                if (maxSpoutPending > 0)
-                    assert(currentPending <= maxSpoutPending) { "Exceeding max-spout-pending" }
             }
         }
     }
@@ -102,15 +112,17 @@ class KumulusAcker(
         }
     }
 
-    fun waitForSpoutAvailability() {
+    fun waitForSpoutAvailability() : Boolean {
         if (maxSpoutPending > 0) {
             synchronized(waitObject) {
                 if (currentPending.get() >= maxSpoutPending) {
                     logger.trace { "Waiting for spout availability" }
-                    waitObject.wait()
+                    waitObject.wait(spoutAvailabilityCheckTimeout)
                 }
             }
+            return currentPending.get() < maxSpoutPending
         }
+        return true
     }
 
     fun releaseSpoutBlocks() {
@@ -147,28 +159,33 @@ class KumulusAcker(
     private fun checkComplete(messageState: MessageState, component: KumulusComponent, input: Tuple?) {
         val key = component.taskId to input
         (input as TupleImpl).spoutMessageId?.let { spoutMessageId ->
-            if (synchronized(completeLock) {
-                assert(messageState.pendingTasks.remove(key)) {
-                    "Key $key was not found in execution map for $component" }
-                logger.debug { "Pending task from $component for message $spoutMessageId was completed. " +
-                        "Current pending tuples are:" + messageState.pendingTasks.let {
-                    if (it.isEmpty()) {
-                        " Empty\n"
-                    } else {
-                        val sb = StringBuilder("\n")
-                        it.forEach {
-                            sb.append("${it.first}: ${it.second}\n")
-                        }
-                        sb.toString()
-                    }
-                }}
-                messageState.pendingTasks.isEmpty()
-            }) {
+            if(!messageState.pendingTasks.remove(key)) {
+                logger.debug { "Key $key was not found in execution map for $component" }
+            }
+            debugMessage(component, spoutMessageId, messageState)
+            if (messageState.pendingTasks.isEmpty()) {
                 logger.debug { "[${component.componentId}/${component.taskId}] " +
                             "Finished with messageId $spoutMessageId" }
                 state.remove(spoutMessageId)
                 notifySpout(messageState.spout, spoutMessageId, messageState.ack.get())
                 decrementPending()
+            }
+        }
+    }
+
+    private fun debugMessage(component: KumulusComponent, spoutMessageId: Any, messageState: MessageState) {
+        logger.debug {
+            "Pending task from $component for message $spoutMessageId was completed. " +
+                    "Current pending tuples are:" + messageState.pendingTasks.let {
+                if (it.isEmpty()) {
+                    " Empty\n"
+                } else {
+                    val sb = StringBuilder("\n")
+                    it.forEach {
+                        sb.append("${it.first}: ${it.second}\n")
+                    }
+                    sb.toString()
+                }
             }
         }
     }
@@ -185,8 +202,11 @@ class KumulusAcker(
         if (maxSpoutPending > 0) {
             synchronized(waitObject) {
                 val currentPending = currentPending.decrementAndGet()
-                assert(currentPending < maxSpoutPending) {
-                    "Max spout pending must have exceeded limit of $maxSpoutPending, current after decrement is $currentPending"
+                if(currentPending >= maxSpoutPending) {
+                    logger.error { "Max spout pending must have exceeded limit of $maxSpoutPending, current after decrement is $currentPending" }
+                    assert(false) {
+                        "Max spout pending must have exceeded limit of $maxSpoutPending, current after decrement is $currentPending"
+                    }
                 }
                 if (currentPending == maxSpoutPending - 1) {
                     waitObject.notify()
