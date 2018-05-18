@@ -50,7 +50,7 @@ class TestAnchoringBehavior {
         logger.info { "Ran ${calledCount.get()} times" }
         assertTrue { calledCount.get() > 1000 }
         logger.info { "Max delay: ${maxWait.get()}ms" }
-        assertTrue { maxWait.get() < 100 }
+        assertTrue { maxWait.get() < 300 }
     }
 
 

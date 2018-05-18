@@ -59,6 +59,8 @@ class KumulusTopology(
         get() = boltExecutionPool.maxSize.get()
 
     init {
+        logger.info { "Initializing a Kumulus topology" }
+        logger.info { "Kumulus topology configuration: $config" }
         this.acker = KumulusAcker(
                 this,
                 maxSpoutPending,
@@ -112,6 +114,7 @@ class KumulusTopology(
      * Do the prepare phase of the topology
      */
     private fun prepare() {
+        logger.info { "Kumulus is starting prepare process for ${components.size} components" }
         components.forEach { component ->
             boltExecutionPool.enqueue(when (component) {
                 is KumulusSpout ->
