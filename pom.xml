@@ -259,7 +259,7 @@
                 <executions>
                     <execution>
                         <id>javaDoc</id>
-                        <phase>package</phase>
+                        <phase>install</phase>
                         <goals>
                             <goal>javadocJar</goal>
                         </goals>
