@@ -258,10 +258,12 @@
                 <version>0.9.15</version>
                 <executions>
                     <execution>
-                        <phase>pre-site</phase>
+                        <id>javaDoc</id>
+                        <phase>package</phase>
                         <goals>
                             <goal>javadocJar</goal>
                         </goals>
+                        <inherited>false</inherited>
                     </execution>
                 </executions>
             </plugin>
