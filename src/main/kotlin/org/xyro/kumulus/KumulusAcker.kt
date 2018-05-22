@@ -164,14 +164,21 @@ class KumulusAcker(
         (input as TupleImpl).spoutMessageId?.let { spoutMessageId ->
             if(!messageState.pendingTasks.remove(key)) {
                 logger.debug { "Key $key was not found in execution map for $component" }
-            }
-            debugMessage(component, spoutMessageId, messageState)
-            if (messageState.pendingTasks.isEmpty()) {
-                logger.debug { "[${component.componentId}/${component.taskId}] " +
-                            "Finished with messageId $spoutMessageId" }
-                state.remove(spoutMessageId)
-                notifySpout(messageState.spout, spoutMessageId, messageState.ack.get())
-                decrementPending()
+            } else {
+                debugMessage(component, spoutMessageId, messageState)
+                if (messageState.pendingTasks.isEmpty()) {
+                    logger.debug {
+                        "[${component.componentId}/${component.taskId}] " +
+                                "Finished with messageId $spoutMessageId"
+                    }
+                    val removedState = state.remove(spoutMessageId)
+                    if (removedState != null) {
+                        notifySpout(messageState.spout, spoutMessageId, messageState.ack.get())
+                        decrementPending()
+                    } else {
+                        logger.debug { "Race while closing tuple-tree, ignoring duplicate" }
+                    }
+                }
             }
         }
     }
