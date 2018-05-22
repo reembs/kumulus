@@ -47,7 +47,10 @@ class KumulusAcker(
                         throw RuntimeException("Duplicate ID: $messageId")
                     }
                     state[messageId] = messageState
-                    waitForSpoutAvailability()
+                    var spoutAvailable: Boolean
+                    do {
+                        spoutAvailable = waitForSpoutAvailability()
+                    } while (!spoutAvailable)
                     val currentPending = currentPending.incrementAndGet()
                     if (maxSpoutPending > 0) {
                         if (currentPending > maxSpoutPending) {
