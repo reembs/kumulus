@@ -49,8 +49,9 @@ class TestAnchoringBehavior {
 
         logger.info { "Ran ${calledCount.get()} times" }
         assertTrue { calledCount.get() > 1000 }
-        logger.info { "Max delay: ${maxWait.get()}ms" }
-        assertTrue { maxWait.get() < 500 }
+        val avgDelay = sumWait.get() / calledCount.get().toDouble()
+        logger.info { "Avg delay: ${avgDelay}ms" }
+        assertTrue { avgDelay < 10 }
     }
 
 
@@ -70,14 +71,12 @@ class TestAnchoringBehavior {
             val now = System.nanoTime()
             if (this.lastCall != null) {
                 val tookMillis = TimeUnit.NANOSECONDS.toMillis(now - this.lastCall!!)
-                maxWait.updateAndGet { v ->
-                    tookMillis.takeIf { tookMillis > v } ?: v
-                }
+                sumWait.addAndGet(tookMillis)
                 if (tookMillis > 100) {
                     logger.error { "Took $tookMillis to nextTuple" }
                 }
+                calledCount.incrementAndGet()
             }
-            calledCount.incrementAndGet()
             this.lastCall = now
             val messageId = ++index
             collector.emit(listOf(messageId), messageId)
@@ -111,14 +110,14 @@ class TestAnchoringBehavior {
         it.declare(Fields("id"))
     }) {
         override fun execute(input: Tuple, collector: BasicOutputCollector) {
-            Thread.sleep(1000)
+            Thread.sleep(5000)
             collector.emit(input.values)
         }
     }
 
     companion object {
         private val logger = KotlinLogging.logger {}
-        private val maxWait = AtomicLong(0)
+        private val sumWait = AtomicLong(0)
         private val calledCount = AtomicLong(0)
     }
 }
