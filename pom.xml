@@ -7,7 +7,7 @@
 
     <groupId>org.xyro</groupId>
     <artifactId>kumulus</artifactId>
-    <version>0.1.31</version>
+    <version>0.1.32</version>
 
     <name>kumulus</name>
     <description>A lightweight, in-process, drop-in replacement for Apache Storm</description>
