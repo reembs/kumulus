@@ -1,4 +1,4 @@
-package org.oryx.kumulus
+package org.xyro.kumulus
 
 import org.apache.storm.spout.SpoutOutputCollector
 import org.apache.storm.task.TopologyContext

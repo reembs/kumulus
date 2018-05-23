@@ -1,8 +1,7 @@
-package org.oryx.kumulus
+package org.xyro.kumulus
 
 import mu.KotlinLogging
 import org.apache.storm.Config
-import org.apache.storm.spout.SpoutOutputCollector
 import org.apache.storm.task.OutputCollector
 import org.apache.storm.task.TopologyContext
 import org.apache.storm.topology.IRichBolt
@@ -10,18 +9,10 @@ import org.apache.storm.topology.OutputFieldsDeclarer
 import org.apache.storm.tuple.Fields
 import org.apache.storm.tuple.Tuple
 import org.junit.Test
-import org.xyro.kumulus.KumulusStormTransformer
-import org.xyro.kumulus.KumulusTopology
-import org.xyro.kumulus.component.KumulusTimeoutAwareSpout
+import org.xyro.kumulus.component.KumulusTimeoutNotificationSpout
 import java.util.*
-import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
-import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicInteger
-import java.util.concurrent.atomic.AtomicLong
-import java.util.concurrent.atomic.AtomicReference
-import kotlin.test.assertFalse
-import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 
 class TestMultipleSpoutsMaxPendingLimit {
@@ -58,14 +49,11 @@ class TestMultipleSpoutsMaxPendingLimit {
         assertTrue { executions.get() > 100 }
     }
 
-    class TestSpout: DummySpout({ it.declare(Fields("id")) }), KumulusTimeoutAwareSpout {
+    class TestSpout: DummySpout({ it.declare(Fields("id")) }) {
         override fun fail(msgId: Any?) {
         }
 
         override fun ack(msgId: Any?) {
-        }
-
-        override fun fail(msgId: Any?, timeoutComponents: List<String>) {
         }
 
         override fun nextTuple() {
