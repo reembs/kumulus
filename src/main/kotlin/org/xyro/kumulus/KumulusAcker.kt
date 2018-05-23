@@ -38,7 +38,7 @@ class KumulusAcker(
     fun startTree(component: KumulusSpout, messageId: Any?) {
         logger.debug { "startTree() -> component: $component, messageId: $messageId" }
         if (messageId == null) {
-            notifySpout(component, messageId, true)
+            notifySpout(component, messageId, listOf())
         } else {
             MessageState(component).let { messageState ->
                 synchronized(completeLock) {
@@ -64,10 +64,17 @@ class KumulusAcker(
 
                 if (messageTimeoutMillis > 0) {
                     timeoutExecutor.schedule({
-                        if (state[messageId] == messageState) {
-                            messageState.pendingTasks.map { it.second }
-                            messageState.ack.compareAndSet(true, false)
-                            forceComplete(messageId)
+                        state[messageId]?.let { messageState ->
+                            val removedState = state.remove(messageId)
+                            if (removedState != null) {
+                                notifySpout(
+                                        messageState.spout,
+                                        messageId,
+                                        removedState.pendingTasks.map { it.key },
+                                        removedState.failedTasks.toList()
+                                )
+                                decrementPending()
+                            }
                         }
                     }, messageTimeoutMillis, TimeUnit.MILLISECONDS)
                 }
@@ -84,7 +91,7 @@ class KumulusAcker(
             val messageState =
                     state[messageId] ?:
                             error("State missing for messageId $messageId while emitting from $component to $dest. Tuple: $tuple")
-            messageState.pendingTasks.add(dest to tuple.kTuple)
+            messageState.pendingTasks.put(dest, tuple.kTuple)
         }
     }
 
@@ -97,7 +104,7 @@ class KumulusAcker(
             val messageState =
                     state[messageId] ?:
                             error("State missing for messageId $messageId while failing tuple in $component. Tuple: $input")
-            messageState.ack.compareAndSet(true, false)
+            messageState.failedTasks.add(component.taskId)
             checkComplete(messageState, component, input)
         }
     }
@@ -138,32 +145,13 @@ class KumulusAcker(
         return this.currentPending.get()
     }
 
-    private fun forceComplete(spoutMessageId: Any) {
-        state[spoutMessageId]?.let { messageState ->
-            var timeoutTasks = listOf<Int>()
-
-            val notify = synchronized(completeLock) {
-                val removedState = state.remove(spoutMessageId)
-
-                timeoutTasks = removedState
-                        ?.pendingTasks
-                        ?.map { it.first } ?: listOf()
-
-                return@synchronized removedState != null
-            }
-
-            if (notify) {
-                notifySpout(messageState.spout, spoutMessageId, false, timeoutTasks)
-                decrementPending()
-            }
-        }
-    }
-
     private fun checkComplete(messageState: MessageState, component: KumulusComponent, input: Tuple?) {
-        val key = component.taskId to input
         (input as TupleImpl).spoutMessageId?.let { spoutMessageId ->
-            if(!messageState.pendingTasks.remove(key)) {
-                logger.debug { "Key $key was not found in execution map for $component" }
+            val removedTask = messageState.pendingTasks.remove(component.taskId)
+            if(removedTask == null) {
+                logger.debug {
+                    "Key $spoutMessageId / ${component.taskId} was not found in execution map for $component"
+                }
             } else {
                 debugMessage(component, spoutMessageId, messageState)
                 if (messageState.pendingTasks.isEmpty()) {
@@ -173,7 +161,7 @@ class KumulusAcker(
                     }
                     val removedState = state.remove(spoutMessageId)
                     if (removedState != null) {
-                        notifySpout(messageState.spout, spoutMessageId, messageState.ack.get())
+                        notifySpout(messageState.spout, spoutMessageId, messageState.failedTasks.toList())
                         decrementPending()
                     } else {
                         logger.debug { "Race while closing tuple-tree, ignoring duplicate" }
@@ -191,8 +179,8 @@ class KumulusAcker(
                     " Empty\n"
                 } else {
                     val sb = StringBuilder("\n")
-                    it.forEach {
-                        sb.append("${it.first}: ${it.second}\n")
+                    it.forEach {(k ,v) ->
+                        sb.append("$k: $v\n")
                     }
                     sb.toString()
                 }
@@ -200,12 +188,17 @@ class KumulusAcker(
         }
     }
 
-    private fun notifySpout(spout: KumulusSpout, spoutMessageId: Any?, ack: Boolean) {
-        this.notifySpout(spout, spoutMessageId, ack, listOf())
+    private fun notifySpout(spout: KumulusSpout, spoutMessageId: Any?, failedTasks: List<Int>) {
+        this.notifySpout(spout, spoutMessageId, listOf(), failedTasks)
     }
 
-    private fun notifySpout(spout: KumulusSpout, spoutMessageId: Any?, ack: Boolean, timeoutTasks: List<Int>) {
-        emitter.completeMessageProcessing(spout, spoutMessageId, ack, timeoutTasks)
+    private fun notifySpout(
+            spout: KumulusSpout,
+            spoutMessageId: Any?,
+            timeoutTasks: List<Int>,
+            failedTasks: List<Int>
+    ) {
+        emitter.completeMessageProcessing(spout, spoutMessageId, timeoutTasks, failedTasks)
     }
 
     private fun decrementPending() {
@@ -230,7 +223,7 @@ class KumulusAcker(
     inner class MessageState(
             val spout: KumulusSpout
     ) {
-        val pendingTasks = ConcurrentHashSet<Pair<Int, Tuple>>()
-        var ack = AtomicBoolean(true)
+        val pendingTasks = ConcurrentHashMap<Int, Tuple>()
+        val failedTasks = ConcurrentHashSet<Int>()
     }
 }

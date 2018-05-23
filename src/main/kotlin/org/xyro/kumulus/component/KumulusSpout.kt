@@ -40,12 +40,17 @@ class KumulusSpout(
         spout.ack(msgId)
     }
 
-    private fun fail(msgId: Any?, timeoutComponents: List<String>) {
-        if (spout is KumulusTimeoutAwareSpout) {
-            spout.fail(msgId, timeoutComponents)
-        } else {
-            spout.fail(msgId)
+    private fun fail(
+            msgId: Any?,
+            timeoutComponents: List<String>,
+            failedComponents: List<String>
+    ) {
+        if (spout is KumulusTimeoutNotificationSpout) {
+            spout.messageIdFailure(msgId, failedComponents, timeoutComponents)
+        } else if (spout is KumulusFailureNotificationSpout) {
+            spout.messageIdFailure(msgId, failedComponents + timeoutComponents)
         }
+        spout.fail(msgId)
     }
 
     fun activate() {
@@ -95,7 +100,7 @@ class KumulusSpout(
             if (ackMessage.ack) {
                 ack(ackMessage.spoutMessageId)
             } else {
-                fail(ackMessage.spoutMessageId, ackMessage.timeoutComponents)
+                fail(ackMessage.spoutMessageId, ackMessage.timeoutComponents, ackMessage.failedComponents)
             }
         }.let {
             if (it == null && isReady.get()) {

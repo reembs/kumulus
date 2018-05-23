@@ -9,8 +9,8 @@ interface KumulusEmitter {
     fun completeMessageProcessing(
             spout: KumulusSpout,
             spoutMessageId: Any?,
-            ack: Boolean,
-            timeoutTasks: List<Int>
+            timeoutTasks: List<Int>,
+            failedTasks: List<Int>
     )
     fun throwException(t: Throwable)
 }

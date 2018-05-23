@@ -1,4 +1,4 @@
-package org.oryx.kumulus
+package org.xyro.kumulus
 
 import mu.KotlinLogging
 import org.apache.storm.Config

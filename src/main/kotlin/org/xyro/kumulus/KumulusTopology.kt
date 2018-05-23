@@ -196,11 +196,16 @@ class KumulusTopology(
     override fun completeMessageProcessing(
             spout: KumulusSpout,
             spoutMessageId: Any?,
-            ack: Boolean,
-            timeoutTasks: List<Int>
+            timeoutTasks: List<Int>,
+            failedTasks: List<Int>
     ) {
-        val timeoutComponents = timeoutTasks.map { this.taskIdToComponent[it]!!.componentId }
-        spout.queue.add(AckMessage(spout, spoutMessageId, ack, timeoutComponents))
+        spout.queue.add(AckMessage(
+                spout,
+                spoutMessageId,
+                timeoutTasks.isEmpty() && failedTasks.isEmpty(),
+                timeoutTasks.map { this.taskIdToComponent[it]!!.componentId },
+                failedTasks.map { this.taskIdToComponent[it]!!.componentId }
+        ))
     }
 
     // KumulusEmitter impl
