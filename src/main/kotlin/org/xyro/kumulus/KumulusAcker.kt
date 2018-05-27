@@ -98,12 +98,13 @@ class KumulusAcker(
     fun fail(component: KumulusComponent, input: Tuple?) {
         logger.debug { "fail() -> component: $component, input: $input" }
         (input as TupleImpl).spoutMessageId?.let { messageId ->
-            if (allowExtraAcking && state[messageId] == null) {
+            val messageState = state[messageId]
+            if (allowExtraAcking && messageState == null) {
                 return
             }
-            val messageState =
-                    state[messageId] ?:
-                            error("State missing for messageId $messageId while failing tuple in $component. Tuple: $input")
+            if (messageState == null) {
+                error("State missing for messageId $messageId while failing tuple in $component. Tuple: $input")
+            }
             messageState.failedTasks.add(component.taskId)
             checkComplete(messageState, component, input)
         }
@@ -112,12 +113,12 @@ class KumulusAcker(
     fun ack(component: KumulusComponent, input: Tuple?) {
         logger.debug { "ack() -> component: $component, input: $input" }
         (input as TupleImpl).spoutMessageId?.let { messageId ->
+            val messageState = state[messageId]
             if (allowExtraAcking && state[messageId] == null) {
                 return
             }
-            val messageState =
-                    state[messageId] ?:
-                            error("State missing for messageId $messageId while acking tuple in $component. Tuple: $input")
+            if (messageState == null)
+                error("State missing for messageId $messageId while acking tuple in $component. Tuple: $input")
             checkComplete(messageState, component, input)
         }
     }
