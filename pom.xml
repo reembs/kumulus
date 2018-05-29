@@ -7,7 +7,7 @@
 
     <groupId>org.xyro</groupId>
     <artifactId>kumulus</artifactId>
-    <version>0.1.34</version>
+    <version>0.1.35</version>
 
     <name>kumulus</name>
     <description>A lightweight, in-process, drop-in replacement for Apache Storm</description>
@@ -38,11 +38,10 @@
 
     <properties>
         <kotlin.version>1.2.41</kotlin.version>
-        <storm.version>1.0.4</storm.version>
+        <storm.version>1.1.2</storm.version>
         <junit.version>4.12</junit.version>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <main.class>org.xyro.kumulus.MainKt</main.class>
-        <log4j.version>2.8</log4j.version>
     </properties>
 
     <dependencies>
@@ -208,24 +207,6 @@
                                     <exclude>org.jetbrains:annotations</exclude>
                                 </excludes>
                             </artifactSet>
-                            <relocations>
-                                <relocation>
-                                    <pattern>mu</pattern>
-                                    <shadedPattern>org.xyro.shaded.mu</shadedPattern>
-                                </relocation>
-                                <relocation>
-                                    <pattern>org.apache.log4j</pattern>
-                                    <shadedPattern>org.xyro.shaded.org.apache.log4j</shadedPattern>
-                                </relocation>
-                                <relocation>
-                                    <pattern>org.apache.logging</pattern>
-                                    <shadedPattern>org.xyro.shaded.org.apache.logging</shadedPattern>
-                                </relocation>
-                                <relocation>
-                                    <pattern>org.slf4j</pattern>
-                                    <shadedPattern>org.xyro.shaded.org.slf4j</shadedPattern>
-                                </relocation>
-                            </relocations>
                             <filters>
                                 <filter>
                                     <artifact>*:*</artifact>
