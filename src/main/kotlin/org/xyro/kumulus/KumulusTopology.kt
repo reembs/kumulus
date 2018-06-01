@@ -6,7 +6,6 @@ import org.apache.storm.Constants
 import org.xyro.kumulus.collector.KumulusBoltCollector
 import org.xyro.kumulus.collector.KumulusSpoutCollector
 import org.xyro.kumulus.component.*
-import org.xyro.kumulus.graph.*
 import java.util.concurrent.*
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicInteger
@@ -213,18 +212,6 @@ class KumulusTopology(
         logger.error("Exception from emitter: $t", t)
         crashException.compareAndSet(null, t)
         this.stopInternal()
-    }
-
-    fun getGraph() : ComponentGraph<GraphNode, GraphEdge<GraphNode>> {
-        return getGraph(defaultNodeFactory, defaultEdgeFactory)
-    }
-
-    @Suppress("MemberVisibilityCanBePrivate")
-    fun <N: GraphNode, E: GraphEdge<N>> getGraph(
-            nodeFactory : ComponentGraphNodeFactory<N>,
-            edgeFactory : ComponentGraphEdgeFactory<N, E>
-    ) : ComponentGraph<GraphNode, GraphEdge<GraphNode>> {
-        return ComponentGraph(this.components, nodeFactory, edgeFactory)
     }
 
     private fun handleQueueItem(message: KumulusMessage) {
