@@ -6,7 +6,6 @@ import org.apache.storm.Constants
 import org.xyro.kumulus.collector.KumulusBoltCollector
 import org.xyro.kumulus.collector.KumulusSpoutCollector
 import org.xyro.kumulus.component.*
-import org.xyro.kumulus.graph.*
 import java.util.concurrent.*
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicInteger
@@ -215,18 +214,6 @@ class KumulusTopology(
         this.stopInternal()
     }
 
-    fun getGraph() : ComponentGraph<GraphNode, GraphEdge<GraphNode>> {
-        return getGraph(defaultNodeFactory, defaultEdgeFactory)
-    }
-
-    @Suppress("MemberVisibilityCanBePrivate")
-    fun <N: GraphNode, E: GraphEdge<N>> getGraph(
-            nodeFactory : ComponentGraphNodeFactory<N>,
-            edgeFactory : ComponentGraphEdgeFactory<N, E>
-    ) : ComponentGraph<GraphNode, GraphEdge<GraphNode>> {
-        return ComponentGraph(this.components, nodeFactory, edgeFactory)
-    }
-
     private fun handleQueueItem(message: KumulusMessage) {
         val c = message.component
         if (c.inUse.compareAndSet(false, true)) {
@@ -241,10 +228,12 @@ class KumulusTopology(
                     is PrepareMessage<*> -> {
                         c.prepareStart.set(System.nanoTime())
                         try {
-                            if (c.isSpout())
-                                (c as KumulusSpout).prepare(message.collector as KumulusSpoutCollector)
-                            else
-                                (c as KumulusBolt).prepare(message.collector as KumulusBoltCollector)
+                            when (c) {
+                                is KumulusSpout -> c.prepare(message.collector as KumulusSpoutCollector)
+                                is KumulusBolt -> c.prepare(message.collector as KumulusBoltCollector)
+                                else -> throw UnsupportedOperationException(
+                                        "Class ${c.javaClass.canonicalName} is not a valid Kumulus component")
+                            }
                         } finally {
                             onBoltPrepareFinishHook?.let {
                                 it(c.componentId, c.taskId,System.nanoTime() - c.prepareStart.get())
@@ -252,21 +241,11 @@ class KumulusTopology(
                         }
                     }
                     is ExecuteMessage -> {
-                        if(c.isSpout()) {
+                        if(c !is KumulusBolt) {
                             throw RuntimeException("Execute message got to a spout '${c.componentId}', this shouldn't happen.")
                         }
-                        onBusyBoltHook?.let {
-                            val waitNanos = c.waitStart.getAndSet(0)
-                            if (waitNanos > 0) {
-                                it(
-                                        c.componentId,
-                                        c.taskId,
-                                        System.nanoTime() - waitNanos,
-                                        message.tuple.spoutMessageId
-                                )
-                            }
-                        }
-                        (c as KumulusBolt).execute(message.tuple)
+                        callBusyHook(c, message)
+                        c.execute(message.tuple)
                     }
                     else ->
                         throw UnsupportedOperationException("Operation of type ${c.javaClass.canonicalName} is unsupported")
@@ -313,6 +292,24 @@ class KumulusTopology(
                 logger.info { "Shutting down thread pool and awaiting termination (max: ${shutdownTimeoutSecs}s)" }
                 logger.info { "Execution engine threads have been shut down" }
                 shutDownHook.countDown()
+            }
+        }
+    }
+
+    private fun callBusyHook(bolt: KumulusBolt, message: ExecuteMessage) {
+        if (onBusyBoltHook != null) {
+            val waitNanos = bolt.waitStart.getAndSet(0)
+            if (waitNanos > 0) {
+                try {
+                    onBusyBoltHook!!(
+                            bolt.componentId,
+                            bolt.taskId,
+                            System.nanoTime() - waitNanos,
+                            message.tuple.spoutMessageId
+                    )
+                } catch (e: Exception) {
+                    logger.error("An exception was thrown from busy-hook callback, ignoring", e)
+                }
             }
         }
     }

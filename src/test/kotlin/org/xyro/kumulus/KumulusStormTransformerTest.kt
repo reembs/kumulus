@@ -3,6 +3,7 @@ import org.HdrHistogram.Histogram
 import org.apache.storm.Config
 import org.apache.storm.Config.TOPOLOGY_TICK_TUPLE_FREQ_SECS
 import org.apache.storm.Constants
+import org.apache.storm.LocalCluster
 import org.apache.storm.spout.SpoutOutputCollector
 import org.apache.storm.task.OutputCollector
 import org.apache.storm.task.TopologyContext
@@ -104,8 +105,6 @@ class KumulusStormTransformerTest {
         builder.setBolt("failing_bolt", failingBolt, parallelism)
                 .shuffleGrouping("unanchoring_bolt")
 
-        val topology = builder.createTopology()!!
-
         config[Config.TOPOLOGY_DISRUPTOR_BATCH_SIZE] = 1
         config[Config.TOPOLOGY_DISRUPTOR_WAIT_TIMEOUT_MILLIS] = 0
         config[Config.TOPOLOGY_DISRUPTOR_BATCH_TIMEOUT_MILLIS] = 1
@@ -115,60 +114,56 @@ class KumulusStormTransformerTest {
 
         config[org.xyro.kumulus.KumulusTopology.CONF_THREAD_POOL_CORE_SIZE] = 1
 
-        val kumulusTopology =
-                KumulusStormTransformer.initializeTopology(topology, config, "testtopology")
+        val topology = builder.createTopology()!!
 
-        val busyTimeMap = ConcurrentHashMap<String, Long>()
+        val isStormTest = System.getenv("TEST_APACHE_STORM")?.toBoolean() == true
+        if (!isStormTest) {
+            val kumulusTopology =
+                    KumulusStormTransformer.initializeTopology(topology, config, "testtopology")
 
-        kumulusTopology.onReportErrorHook = { errBolt, errTaskId, throwable ->
-            logger.error("Error in component $errBolt/$errTaskId", throwable)
-        }
+            val busyTimeMap = ConcurrentHashMap<String, Long>()
 
-        kumulusTopology.onBoltPrepareFinishHook = { comp: String, task: Int, prepareTookNanos: Long ->
-            val tookMs = prepareTookNanos.toDouble() / 1000 / 1000
-            logger.info { "Component $comp [taskId: $task] took ${tookMs}ms to prepare" }
-        }
-
-        kumulusTopology.onBusyBoltHook = { comp, _, busyNanos, _ ->
-            busyTimeMap.compute(comp, { _, v->
-                when (v) {
-                    null -> busyNanos
-                    else -> busyNanos + v
-                }
-            })
-        }
-
-        System.getenv("GRAPH_OUT_PATH")?.let { path ->
-            val graph = kumulusTopology.getGraph()
-            FileOutputStream(path, false).use {
-                PrintWriter(it).use {
-                    it.print(graph.toJson())
-                }
+            kumulusTopology.onReportErrorHook = { errBolt, errTaskId, throwable ->
+                logger.error("Error in component $errBolt/$errTaskId", throwable)
             }
+
+            kumulusTopology.onBoltPrepareFinishHook = { comp: String, task: Int, prepareTookNanos: Long ->
+                val tookMs = prepareTookNanos.toDouble() / 1000 / 1000
+                logger.info { "Component $comp [taskId: $task] took ${tookMs}ms to prepare" }
+            }
+
+            kumulusTopology.onBusyBoltHook = { comp, _, busyNanos, _ ->
+                busyTimeMap.compute(comp, { _, v->
+                    when (v) {
+                        null -> busyNanos
+                        else -> busyNanos + v
+                    }
+                })
+            }
+
+            kumulusTopology.prepare(10, TimeUnit.SECONDS)
+            kumulusTopology.start()
+            finish.await()
+
+            logger.info { "Processed $TOTAL_ITERATIONS end-to-end messages in ${System.currentTimeMillis() - start.get()}ms" }
+            logger.info { "Max spout pending: $maxPending" }
+            kumulusTopology.stop()
+
+            busyTimeMap.map { (bolt, waitNanos) ->
+                bolt to waitNanos
+            }.sortedBy {
+                it.second
+            }.reversed().forEach { (bolt, waitNanos) ->
+                val waitMillis = waitNanos.toDouble() / 1000 / 1000
+                println("Component $bolt waited a total of ${waitMillis}ms during the test execution")
+            }
+        } else {
+            val cluster = LocalCluster()
+            cluster.submitTopology("testtopology", config, topology)
+            finish.await()
+            logger.info { "Processed $TOTAL_ITERATIONS end-to-end messages in ${System.currentTimeMillis() - start.get()}ms" }
+            logger.info { "Max spout pending: $maxPending" }
         }
-
-        kumulusTopology.prepare(10, TimeUnit.SECONDS)
-        kumulusTopology.start()
-        finish.await()
-
-        logger.info { "Processed $TOTAL_ITERATIONS end-to-end messages in ${System.currentTimeMillis() - start.get()}ms" }
-        logger.info { "Max spout pending: $maxPending" }
-        kumulusTopology.stop()
-
-        busyTimeMap.map { (bolt, waitNanos) ->
-            bolt to waitNanos
-        }.sortedBy {
-            it.second
-        }.reversed().forEach { (bolt, waitNanos) ->
-            val waitMillis = waitNanos.toDouble() / 1000 / 1000
-            println("Component $bolt waited a total of ${waitMillis}ms during the test execution")
-        }
-
-//        val cluster = LocalCluster()
-//        cluster.submitTopology("testtopology", config, topology)
-//        finish.await()
-//        logger.info { "Processed $TOTAL_ITERATIONS end-to-end messages in ${System.currentTimeMillis() - start.get()}ms" }
-//        logger.info { "Max spout pending: $maxPending" }
     }
 
     @Test
