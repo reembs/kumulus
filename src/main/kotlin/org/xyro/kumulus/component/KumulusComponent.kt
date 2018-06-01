@@ -64,14 +64,6 @@ abstract class KumulusComponent(
     }
 }
 
-fun KumulusComponent.isSpout() : Boolean {
-    return when(this) {
-        is KumulusSpout -> true
-        is KumulusBolt -> false
-        else -> null
-    } ?: throw UnsupportedOperationException()
-}
-
 abstract class KumulusMessage(val component: KumulusComponent)
 
 abstract class PrepareMessage<in T: KumulusComponent>(
