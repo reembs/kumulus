@@ -3,6 +3,7 @@ package org.xyro.kumulus
 import mu.KotlinLogging
 import org.apache.storm.Config
 import org.apache.storm.Constants
+import org.apache.storm.tuple.Tuple
 import org.xyro.kumulus.collector.KumulusBoltCollector
 import org.xyro.kumulus.collector.KumulusSpoutCollector
 import org.xyro.kumulus.component.*
@@ -31,7 +32,7 @@ class KumulusTopology(
     private val atomicMaxThreadsInUse = AtomicInteger(0)
 
     private val scheduledExecutorPoolSize: Int =
-            (config[CONF_SCHEDULED_EXECUTOR_THREAD_POOL_SIZE] as? Long ?: 1L).toInt()
+            (config[CONF_SCHEDULED_EXECUTOR_THREAD_POOL_SIZE] as? Long ?: 5L).toInt()
     private val rejectedExecutionHandler = RejectedExecutionHandler { _, _ ->
         logger.error { "Execution was rejected, current pool size: $scheduledExecutorPoolSize" }
     }
@@ -41,7 +42,7 @@ class KumulusTopology(
     internal val readyPollSleepTime: Long = config[CONF_READY_POLL_SLEEP] as? Long ?: 100L
     internal val queuePushbackWait: Long = config[CONF_BOLT_QUEUE_PUSHBACK_WAIT] as? Long ?: 0L
 
-    var onBusyBoltHook: ((String, Int, Long, Any?) -> Unit)? = null
+    var onBusyBoltHook: ((String, Int, Long, Tuple) -> Unit)? = null
     var onBoltPrepareFinishHook: ((String, Int, Long) -> Unit)? = null
     var onReportErrorHook: ((String, Int, Throwable) -> Unit)? = null
 
@@ -297,18 +298,24 @@ class KumulusTopology(
     }
 
     private fun callBusyHook(bolt: KumulusBolt, message: ExecuteMessage) {
-        if (onBusyBoltHook != null) {
+        onBusyBoltHook?.let { onBusyBoltHook ->
             val waitNanos = bolt.waitStart.getAndSet(0)
             if (waitNanos > 0) {
                 try {
-                    onBusyBoltHook!!(
-                            bolt.componentId,
-                            bolt.taskId,
-                            System.nanoTime() - waitNanos,
-                            message.tuple.spoutMessageId
-                    )
+                    scheduledExecutor.submit {
+                        try {
+                            onBusyBoltHook(
+                                    bolt.componentId,
+                                    bolt.taskId,
+                                    System.nanoTime() - waitNanos,
+                                    message.tuple.kTuple
+                            )
+                        } catch (e: Exception) {
+                            logger.error("An exception was thrown from busy-hook callback, ignoring", e)
+                        }
+                    }
                 } catch (e: Exception) {
-                    logger.error("An exception was thrown from busy-hook callback, ignoring", e)
+                    logger.error("An exception was thrown by busy-hook thread-pool submission, ignoring", e)
                 }
             }
         }
