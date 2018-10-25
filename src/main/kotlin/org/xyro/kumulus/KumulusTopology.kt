@@ -12,6 +12,7 @@ import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.atomic.AtomicReference
 
+@Suppress("MemberVisibilityCanBePrivate")
 class KumulusTopology(
         private val components: List<KumulusComponent>,
         config: Map<String, Any>
@@ -80,6 +81,7 @@ class KumulusTopology(
         const val CONF_SHUTDOWN_TIMEOUT_SECS = "kumulus.shutdown.timeout.secs"
         const val CONF_SCHEDULED_EXECUTOR_THREAD_POOL_SIZE = "kumulus.executor.scheduled-executor.pool-size"
 
+        @Suppress("unused")
         @Deprecated("Use CONF_READY_POLL_SLEEP instead")
         const val CONF_BUSY_POLL_SLEEP_TIME = CONF_READY_POLL_SLEEP
     }
@@ -156,11 +158,17 @@ class KumulusTopology(
      */
     fun start(block: Boolean = false) {
         this.resetMetrics()
-        val spouts = components.filter { it is KumulusSpout }.map { it as KumulusSpout }
+        val spouts = components.asSequence()
+                .filter { it is KumulusSpout }
+                .map { it as KumulusSpout }
+                .toList()
+
         spouts.forEach { spout ->
             spout.start(this)
         }
+
         started.set(true)
+
         if (block) {
             shutDownHook.await()
             throwIfNeeded()

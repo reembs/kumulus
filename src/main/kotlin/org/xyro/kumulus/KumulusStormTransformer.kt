@@ -4,8 +4,6 @@ import clojure.lang.Atom
 import org.apache.storm.Config
 import org.apache.storm.Constants
 import org.apache.storm.generated.*
-import org.apache.storm.grouping.CustomStreamGrouping
-import org.apache.storm.grouping.ShuffleGrouping
 import org.apache.storm.metric.api.IMetric
 import org.apache.storm.task.TopologyContext
 import org.apache.storm.topology.*
@@ -16,8 +14,6 @@ import org.apache.storm.utils.Utils
 import org.xyro.kumulus.component.KumulusBolt
 import org.xyro.kumulus.component.KumulusComponent
 import org.xyro.kumulus.component.KumulusSpout
-import org.xyro.kumulus.grouping.AllGrouping
-import org.xyro.kumulus.grouping.FieldsGrouping
 import java.io.Serializable
 
 @Suppress("unused")
@@ -112,9 +108,9 @@ class KumulusStormTransformer {
                             streamToFields[stream] = Fields(streamInfo?._output_fields)
                         }
 
-                        componentCommon._inputs?.forEach({
+                        componentCommon._inputs?.forEach {
                             kComponentInputs[name to it.key] = it.value
-                        })
+                        }
 
                         id++
                     }
@@ -125,7 +121,7 @@ class KumulusStormTransformer {
                 return@mapValues (it.value as? Int)?.toLong() ?: it.value
             }
 
-            componentToSortedTasks.forEach({ componentId: String, taskIds: List<Int> ->
+            componentToSortedTasks.forEach { componentId: String, taskIds: List<Int> ->
                 val (componentObjectSerialized, componentCommon) =
                         when {
                             topology._spouts!!.containsKey(componentId) ->
@@ -135,11 +131,13 @@ class KumulusStormTransformer {
                                 topology._bolts[componentId]!!
                                         .let { it._bolt_object!! to it._common!! }
                             componentId == Constants.SYSTEM_COMPONENT_ID ->
-                                    null to null
-                            else -> throw Exception("Component name '$componentId' was not found in underlaying topology object")
+                                null to null
+                            else ->
+                                throw Exception(
+                                        "Component name '$componentId' was not found in underlying topology object")
                         }
 
-                taskIds.forEach({ taskId ->
+                taskIds.forEach { taskId ->
                     val componentInstance =
                             if (taskId == Constants.SYSTEM_TASK_ID.toInt()) {
                                 BasicBoltExecutor(object : BaseBasicBolt() {
@@ -149,7 +147,10 @@ class KumulusStormTransformer {
                                     }
                                 })
                             } else {
-                                Utils.javaDeserialize<Serializable>(componentObjectSerialized!!._serialized_java, Serializable::class.java)
+                                Utils.javaDeserialize<Serializable>(
+                                        componentObjectSerialized!!._serialized_java,
+                                        Serializable::class.java
+                                )
                             }
 
                     val context = TopologyContext(
@@ -172,10 +173,14 @@ class KumulusStormTransformer {
 
                     kComponents += when (componentInstance) {
                         is IRichBolt -> {
-                            KumulusBolt(config, context, componentInstance, componentCommon).apply {
-                                (componentInstance.componentConfiguration ?: mapOf())[Config.TOPOLOGY_TICK_TUPLE_FREQ_SECS]?.let { secs ->
+                            val kumulusBolt = KumulusBolt(config, context, componentInstance, componentCommon)
+                            kumulusBolt.apply {
+                                val boltConfig =
+                                        componentInstance.componentConfiguration ?: mapOf()
+                                boltConfig[Config.TOPOLOGY_TICK_TUPLE_FREQ_SECS]?.let { secs ->
                                     if(secs !is Number) {
-                                        throw IllegalArgumentException("Config.TOPOLOGY_TICK_TUPLE_FREQ_SECS must be a number. Got: $secs")
+                                        throw IllegalArgumentException(
+                                                "Config.TOPOLOGY_TICK_TUPLE_FREQ_SECS must be a number. Got: $secs")
                                     }
                                     this.tickSecs = secs
                                 }
@@ -183,10 +188,11 @@ class KumulusStormTransformer {
                         }
                         is IRichSpout -> KumulusSpout(config, context, componentInstance)
                         else ->
-                            throw Throwable("Component of type ${componentInstance::class.qualifiedName} is not acceptable by Kumulus")
+                            throw Throwable("Component of type ${componentInstance::class.qualifiedName} " +
+                                    "is not acceptable by Kumulus")
                     }
-                })
-            })
+                }
+            }
 
             validateTopology(kComponents)
 
