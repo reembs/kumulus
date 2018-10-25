@@ -3,7 +3,6 @@ package org.xyro.kumulus.grouping
 import org.apache.storm.generated.GlobalStreamId
 import org.apache.storm.grouping.CustomStreamGrouping
 import org.apache.storm.task.WorkerTopologyContext
-import java.util.*
 
 class AllGrouping : CustomStreamGrouping {
     private lateinit var tasks: List<Int>

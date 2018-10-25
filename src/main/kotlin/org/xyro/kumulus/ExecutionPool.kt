@@ -25,9 +25,9 @@ class ExecutionPool(
 
     fun enqueue(message: KumulusMessage) {
         mainQueue.put(message)
-        maxSize.getAndUpdate({
+        maxSize.getAndUpdate {
             Math.max(it, mainQueue.size)
-        })
+        }
     }
 
     private fun threadMain() {
