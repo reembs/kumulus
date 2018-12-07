@@ -4,15 +4,22 @@ import mu.KotlinLogging
 import org.apache.storm.Config
 import org.apache.storm.task.OutputCollector
 import org.apache.storm.task.TopologyContext
+import org.apache.storm.topology.BasicOutputCollector
 import org.apache.storm.topology.IRichBolt
 import org.apache.storm.topology.OutputFieldsDeclarer
+import org.apache.storm.topology.base.BaseBasicBolt
 import org.apache.storm.tuple.Fields
 import org.apache.storm.tuple.Tuple
+import org.hamcrest.core.AnyOf
+import org.hamcrest.core.Is
+import org.junit.Assert.assertThat
 import org.junit.Test
 import org.xyro.kumulus.component.KumulusTimeoutNotificationSpout
 import java.util.*
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
+import java.util.regex.Matcher
+import kotlin.test.assertSame
 import kotlin.test.assertTrue
 
 class TestMultipleSpoutsMaxPendingLimit {
@@ -49,7 +56,39 @@ class TestMultipleSpoutsMaxPendingLimit {
         assertTrue { executions.get() > 100 }
     }
 
+    @Test
+    fun testMaxSpoutPending() {
+        val builder = org.apache.storm.topology.TopologyBuilder()
+        val config: MutableMap<String, Any> = mutableMapOf()
+
+        config[Config.TOPOLOGY_MAX_SPOUT_PENDING] = 1L
+        config[Config.TOPOLOGY_MESSAGE_TIMEOUT_SECS] = 5L
+        config[KumulusTopology.CONF_THREAD_POOL_CORE_SIZE] = 5L
+
+        builder.setSpout("spout", TestSpout())
+
+        builder.setBolt("sleeping-bolt", SleepingBolt(), 4)
+                .shuffleGrouping("spout")
+
+        val stormTopology = builder.createTopology()!!
+        val kumulusTopology =
+                KumulusStormTransformer.initializeTopology(stormTopology, config, "test")
+        kumulusTopology.prepare(10, TimeUnit.SECONDS)
+        kumulusTopology.start()
+
+        for (i in 0 until 50) {
+            Thread.sleep(100)
+            val actual = SleepingBolt.inFlight.get()
+            assertTrue { actual <= 1 }
+        }
+
+        kumulusTopology.stop()
+        logger.info { "Executed ${executions.get()} times, no errors" }
+    }
+
     class TestSpout: DummySpout({ it.declare(Fields("id")) }) {
+        private var count = 0
+
         override fun fail(msgId: Any?) {
         }
 
@@ -59,6 +98,18 @@ class TestMultipleSpoutsMaxPendingLimit {
         override fun nextTuple() {
             val messageId = UUID.randomUUID().toString()
             collector.emit(listOf(messageId), messageId)
+        }
+    }
+
+    class SleepingBolt : BaseBasicBolt() {
+        override fun execute(input: Tuple, collector: BasicOutputCollector) {
+            inFlight.incrementAndGet()
+            Thread.sleep(100)
+            inFlight.decrementAndGet()
+        }
+        override fun declareOutputFields(declarer: OutputFieldsDeclarer) = Unit
+        companion object {
+            val inFlight = AtomicInteger(0)
         }
     }
 
