@@ -24,8 +24,6 @@ class KumulusSpout(
     private val deactivationLock = Any()
     private val deactivated = AtomicBoolean(false)
 
-    val queue = LinkedBlockingQueue<AckMessage>()
-
     fun prepare(collector: KumulusSpoutCollector) {
         logger.debug { "Created spout '$componentId' with taskId $taskId (index: ${context.thisTaskIndex}). Object hashcode: ${this.hashCode()}" }
         spout.open(config, context, SpoutOutputCollector(collector))

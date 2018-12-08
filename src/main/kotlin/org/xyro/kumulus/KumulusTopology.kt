@@ -44,7 +44,6 @@ class KumulusTopology(
     internal val queuePushbackWait: Long = config[CONF_BOLT_QUEUE_PUSHBACK_WAIT] as? Long ?: 0L
 
     var onBusyBoltHook: ((String, Int, Long, Tuple) -> Unit)? = null
-    var onBoltPrepareFinishHook: ((String, Int, Long) -> Unit)? = null
     var onReportErrorHook: ((String, Int, Throwable) -> Unit)? = null
 
     @Suppress("MemberVisibilityCanBePrivate", "unused")
@@ -236,17 +235,11 @@ class KumulusTopology(
                 when (message) {
                     is PrepareMessage<*> -> {
                         c.prepareStart.set(System.nanoTime())
-                        try {
-                            when (c) {
-                                is KumulusSpout -> c.prepare(message.collector as KumulusSpoutCollector)
-                                is KumulusBolt -> c.prepare(message.collector as KumulusBoltCollector)
-                                else -> throw UnsupportedOperationException(
-                                        "Class ${c.javaClass.canonicalName} is not a valid Kumulus component")
-                            }
-                        } finally {
-                            onBoltPrepareFinishHook?.let {
-                                it(c.componentId, c.taskId,System.nanoTime() - c.prepareStart.get())
-                            }
+                        when (c) {
+                            is KumulusSpout -> c.prepare(message.collector as KumulusSpoutCollector)
+                            is KumulusBolt -> c.prepare(message.collector as KumulusBoltCollector)
+                            else -> throw UnsupportedOperationException(
+                                    "Class ${c.javaClass.canonicalName} is not a valid Kumulus component")
                         }
                     }
                     is ExecuteMessage -> {
@@ -301,30 +294,6 @@ class KumulusTopology(
                 logger.info { "Shutting down thread pool and awaiting termination (max: ${shutdownTimeoutSecs}s)" }
                 logger.info { "Execution engine threads have been shut down" }
                 shutDownHook.countDown()
-            }
-        }
-    }
-
-    private fun callBusyHook(bolt: KumulusBolt, message: ExecuteMessage) {
-        onBusyBoltHook?.let { onBusyBoltHook ->
-            val waitNanos = bolt.waitStart.getAndSet(0)
-            if (waitNanos > 0) {
-                try {
-                    scheduledExecutor.submit {
-                        try {
-                            onBusyBoltHook(
-                                    bolt.componentId,
-                                    bolt.taskId,
-                                    System.nanoTime() - waitNanos,
-                                    message.tuple.kTuple
-                            )
-                        } catch (e: Exception) {
-                            logger.error("An exception was thrown from busy-hook callback, ignoring", e)
-                        }
-                    }
-                } catch (e: Exception) {
-                    logger.error("An exception was thrown by busy-hook thread-pool submission, ignoring", e)
-                }
             }
         }
     }

@@ -1,7 +1,7 @@
 package org.xyro.kumulus
 
+import org.jctools.queues.atomic.MpscLinkedAtomicQueue
 import org.xyro.kumulus.component.KumulusMessage
-import java.util.concurrent.LinkedBlockingQueue
 import java.util.concurrent.atomic.AtomicInteger
 
 class ExecutionPool(
@@ -9,7 +9,7 @@ class ExecutionPool(
         private val threadFun: (KumulusMessage) -> Unit
 ) {
     // uncapped, memory for in-flight tuples should be taken into account and factored into max-spout-pending
-    private val mainQueue = LinkedBlockingQueue<KumulusMessage>()
+    private val mainQueue = MpscLinkedAtomicQueue<KumulusMessage>()
 
     var maxSize = AtomicInteger(0)
 
@@ -24,7 +24,7 @@ class ExecutionPool(
     }
 
     fun enqueue(message: KumulusMessage) {
-        mainQueue.put(message)
+        mainQueue.add(message)
         maxSize.getAndUpdate {
             Math.max(it, mainQueue.size)
         }
@@ -32,8 +32,7 @@ class ExecutionPool(
 
     private fun threadMain() {
         while (true) {
-            val message = mainQueue.take()!!
-            threadFun(message)
+             mainQueue.drain(threadFun)
         }
     }
 }

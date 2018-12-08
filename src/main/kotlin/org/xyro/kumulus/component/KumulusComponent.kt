@@ -1,10 +1,13 @@
 package org.xyro.kumulus.component
 
+import mu.KotlinLogging
 import org.apache.storm.generated.GlobalStreamId
 import org.apache.storm.grouping.CustomStreamGrouping
 import org.apache.storm.grouping.ShuffleGrouping
 import org.apache.storm.task.TopologyContext
+import org.apache.storm.tuple.Tuple
 import org.apache.storm.utils.Utils
+import org.jctools.queues.atomic.MpscLinkedAtomicQueue
 import org.xyro.kumulus.KumulusTuple
 import org.xyro.kumulus.collector.KumulusBoltCollector
 import org.xyro.kumulus.collector.KumulusCollector
@@ -15,12 +18,18 @@ import java.io.Serializable
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicLong
 
+private val logger = KotlinLogging.logger {}
+
 abstract class KumulusComponent(
         protected val config: Map<String, Any>,
         val context: TopologyContext
 ) {
     val inUse = AtomicBoolean(false)
     val isReady = AtomicBoolean(false)
+
+    var onBusyBoltHook: ((String, Int, Long, Tuple) -> Unit)? = null
+
+    protected val queue = MpscLinkedAtomicQueue<KumulusMessage>()
 
     /**
      * stream -> (component -> grouping)
@@ -32,6 +41,8 @@ abstract class KumulusComponent(
 
     val componentId = context.thisComponentId!!
     val taskId = context.thisTaskId
+
+    private lateinit var thread: Thread
 
     fun prepare() {
         val groupingStateMap: MutableMap<String, MutableMap<String, CustomStreamGrouping>> = mutableMapOf()
@@ -56,7 +67,64 @@ abstract class KumulusComponent(
             }
         }
         this.groupingStateMap = groupingStateMap
+        this.thread = Thread {
+            queueProcessing()
+        }.apply {
+            isDaemon = true
+            start()
+        }
         isReady.set(true)
+    }
+
+    private fun queueProcessing() {
+        while (true) {
+            this.queue.drain { message ->
+                try {
+                    when (message) {
+                        is PrepareMessage<*> -> {
+                            this.prepareStart.set(System.nanoTime())
+                            when (this) {
+                                is KumulusSpout -> this.prepare(message.collector as KumulusSpoutCollector)
+                                is KumulusBolt -> this.prepare(message.collector as KumulusBoltCollector)
+                                else -> throw UnsupportedOperationException(
+                                        "Class ${this.javaClass.canonicalName} is not a valid Kumulus component")
+                            }
+                        }
+                        is ExecuteMessage -> {
+                            if (this !is KumulusBolt) {
+                                throw RuntimeException("Execute message got to a spout '${this.componentId}', this shouldn't happen.")
+                            }
+                            callBusyHook(this, message)
+                            this.execute(message.tuple)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private fun callBusyHook(bolt: KumulusBolt, message: ExecuteMessage) {
+//        onBusyBoltHook?.let { onBusyBoltHook ->
+//            val waitNanos = bolt.waitStart.getAndSet(0)
+//            if (waitNanos > 0) {
+//                try {
+//                    scheduledExecutor.submit {
+//                        try {
+//                            onBusyBoltHook(
+//                                    bolt.componentId,
+//                                    bolt.taskId,
+//                                    System.nanoTime() - waitNanos,
+//                                    message.tuple.kTuple
+//                            )
+//                        } catch (e: Exception) {
+//                            logger.error("An exception was thrown from busy-hook callback, ignoring", e)
+//                        }
+//                    }
+//                } catch (e: Exception) {
+//                    logger.error("An exception was thrown by busy-hook thread-pool submission, ignoring", e)
+//                }
+//            }
+//        }
     }
 
     override fun toString(): String {
