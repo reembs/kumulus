@@ -7,7 +7,7 @@
 
     <groupId>org.xyro</groupId>
     <artifactId>kumulus</artifactId>
-    <version>0.1.36</version>
+    <version>0.1.37</version>
 
     <name>kumulus</name>
     <description>A lightweight, in-process, drop-in replacement for Apache Storm</description>
@@ -37,7 +37,7 @@
     </developers>
 
     <properties>
-        <kotlin.version>1.2.71</kotlin.version>
+        <kotlin.version>1.3.31</kotlin.version>
         <storm.version>1.2.2</storm.version>
         <junit.version>4.12</junit.version>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
