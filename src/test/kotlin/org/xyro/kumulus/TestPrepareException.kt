@@ -60,7 +60,7 @@ class TestPrepareException {
 
     class TestBolt(private val prepareDelaySecs: Int) : IRichBolt {
         override fun execute(input: Tuple) = Unit
-        override fun prepare(p0: MutableMap<Any?, Any?>?, p1: TopologyContext?, p2: OutputCollector) {
+        override fun prepare(p0: MutableMap<String, Any?>?, p1: TopologyContext?, p2: OutputCollector) {
             Thread.sleep((prepareDelaySecs * 1000).toLong())
             throw TestException()
         }

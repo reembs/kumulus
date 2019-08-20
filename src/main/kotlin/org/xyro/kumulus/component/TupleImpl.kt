@@ -9,14 +9,14 @@ import org.apache.storm.tuple.Tuple
 open class TupleImpl : Tuple {
     val spoutMessageId: Any?
 
-    private val context: GeneralTopologyContext
+    private val _context: GeneralTopologyContext
     private val values: List<Any>
+
     private val taskId: Int
     private val streamId: String
     private val id: MessageId
-
     constructor(context: GeneralTopologyContext, values: List<Any>, taskId: Int, streamId: String, id: MessageId, spoutMessageId: Any?) {
-        this.context = context
+        this._context = context
         this.values = values
         this.taskId = taskId
         this.streamId = streamId
@@ -34,6 +34,8 @@ open class TupleImpl : Tuple {
 
     constructor(context: GeneralTopologyContext, values: List<Any>, taskId: Int, streamId: String) :
             this(context, values, taskId, streamId, MessageId.makeUnanchored(), null)
+
+    override fun getContext(): GeneralTopologyContext = _context
 
 
     override fun size(): Int {
@@ -139,11 +141,6 @@ open class TupleImpl : Tuple {
 
     override fun select(selector: Fields): List<Any> {
         return fields.select(selector, values)
-    }
-
-    @Deprecated("", ReplaceWith("sourceGlobalStreamId"))
-    override fun getSourceGlobalStreamid(): GlobalStreamId {
-        return sourceGlobalStreamId
     }
 
     override fun getSourceGlobalStreamId(): GlobalStreamId {

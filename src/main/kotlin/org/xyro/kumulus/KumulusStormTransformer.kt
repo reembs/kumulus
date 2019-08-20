@@ -1,6 +1,5 @@
 package org.xyro.kumulus
 
-import clojure.lang.Atom
 import org.apache.storm.Config
 import org.apache.storm.Constants
 import org.apache.storm.generated.*
@@ -15,6 +14,7 @@ import org.xyro.kumulus.component.KumulusBolt
 import org.xyro.kumulus.component.KumulusComponent
 import org.xyro.kumulus.component.KumulusSpout
 import java.io.Serializable
+import java.util.concurrent.atomic.AtomicBoolean
 
 @Suppress("unused")
 class KumulusStormTransformer {
@@ -159,6 +159,7 @@ class KumulusStormTransformer {
                             taskToComponent,
                             componentToSortedTasks,
                             componentToStreamToFields,
+                            mapOf(),
                             stormId,
                             codeDir,
                             pidDir,
@@ -169,7 +170,7 @@ class KumulusStormTransformer {
                             userResources,
                             executorData,
                             registeredMetrics,
-                            Atom(Object()))
+                            AtomicBoolean(false))
 
                     kComponents += when (componentInstance) {
                         is IRichBolt -> {

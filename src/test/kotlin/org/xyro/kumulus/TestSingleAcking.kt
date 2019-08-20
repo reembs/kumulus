@@ -44,7 +44,7 @@ class TestSingleAcking {
         private var index: Int = 0
         private val emitted = mutableSetOf<Int>()
 
-        override fun open(conf: MutableMap<Any?, Any?>?, context: TopologyContext?, collector: SpoutOutputCollector?) {
+        override fun open(conf: MutableMap<String, Any?>?, context: TopologyContext?, collector: SpoutOutputCollector?) {
             super.open(conf, context, collector)
             this.index = 0
         }

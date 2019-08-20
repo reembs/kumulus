@@ -1,11 +1,11 @@
 package org.xyro.kumulus
 
 import mu.KotlinLogging
-import org.apache.storm.shade.org.eclipse.jetty.util.ConcurrentHashSet
 import org.apache.storm.tuple.Tuple
 import org.xyro.kumulus.component.KumulusComponent
 import org.xyro.kumulus.component.KumulusSpout
 import org.xyro.kumulus.component.TupleImpl
+import java.util.*
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.ScheduledThreadPoolExecutor
 import java.util.concurrent.TimeUnit
@@ -224,6 +224,6 @@ class KumulusAcker(
             val spout: KumulusSpout
     ) {
         val pendingTasks = ConcurrentHashMap<Int, Tuple>()
-        val failedTasks = ConcurrentHashSet<Int>()
+        val failedTasks: MutableSet<Int> = Collections.newSetFromMap(ConcurrentHashMap<Int, Boolean>())
     }
 }

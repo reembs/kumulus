@@ -85,7 +85,7 @@ open class DummySpout : BaseRichSpout {
 
     override fun nextTuple() {}
 
-    override fun open(conf: MutableMap<Any?, Any?>?, context: TopologyContext?, collector: SpoutOutputCollector?) {
+    override fun open(conf: MutableMap<String, Any?>?, context: TopologyContext?, collector: SpoutOutputCollector?) {
         this.collector = collector!!
     }
     override fun declareOutputFields(declarer: OutputFieldsDeclarer) {

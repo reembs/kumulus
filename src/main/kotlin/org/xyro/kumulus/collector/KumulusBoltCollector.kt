@@ -23,6 +23,10 @@ class KumulusBoltCollector(
         val logger = KotlinLogging.logger { }
     }
 
+    override fun flush() {
+        TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
+    }
+
     override fun emitDirect(taskId: Int, streamId: String?, anchors: MutableCollection<Tuple>?, tuple: MutableList<Any>?) {
         TODO("not implemented")
     }

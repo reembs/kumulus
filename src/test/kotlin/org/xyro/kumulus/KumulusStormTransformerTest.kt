@@ -43,7 +43,15 @@ class KumulusStormTransformerTest {
     fun test1() {
         val builder = org.apache.storm.topology.TopologyBuilder()
 
-        val config: MutableMap<String, Any> = mutableMapOf()
+        val config: MutableMap<String, Any> = mutableMapOf(
+                Config.STORM_ZOOKEEPER_SESSION_TIMEOUT to 120000,
+                Config.WORKER_HEAP_MEMORY_MB to 1024,
+                Config.SUPERVISOR_WORKER_HEARTBEATS_MAX_TIMEOUT_SECS to 300,
+                Config.SUPERVISOR_WORKER_TIMEOUT_SECS to 300,
+                Config.TOPOLOGY_DEBUG to false,
+                Config.STORM_ZOOKEEPER_SERVERS to arrayListOf("localhost"),
+                Config.STORM_ZOOKEEPER_PORT to 2181
+        )
 
         val spout = TestSpout()
 
@@ -57,9 +65,9 @@ class KumulusStormTransformerTest {
             var thisTaskIndex : Int = 0
             var lastIndex : Int = 0
 
-            override fun prepare(stormConf: MutableMap<Any?, Any?>?, context: TopologyContext?, collector: OutputCollector?) {
-                this.collector = collector!!
-                this.thisTaskIndex = context!!.thisTaskIndex
+            override fun prepare(stormConf: MutableMap<String, Any>, context: TopologyContext, collector: OutputCollector) {
+                this.collector = collector
+                this.thisTaskIndex = context.thisTaskIndex
             }
 
             override fun execute(input: Tuple?) {
@@ -105,14 +113,11 @@ class KumulusStormTransformerTest {
         builder.setBolt("failing_bolt", failingBolt, parallelism)
                 .shuffleGrouping("unanchoring_bolt")
 
-        config[Config.TOPOLOGY_DISRUPTOR_BATCH_SIZE] = 1
-        config[Config.TOPOLOGY_DISRUPTOR_WAIT_TIMEOUT_MILLIS] = 0
-        config[Config.TOPOLOGY_DISRUPTOR_BATCH_TIMEOUT_MILLIS] = 1
         config[Config.STORM_CLUSTER_MODE] = "local"
         config[Config.TOPOLOGY_MAX_SPOUT_PENDING] = maxPending
         config[Config.TOPOLOGY_MESSAGE_TIMEOUT_SECS] = 1
 
-        config[org.xyro.kumulus.KumulusTopology.CONF_THREAD_POOL_CORE_SIZE] = 1
+        config[KumulusTopology.CONF_THREAD_POOL_CORE_SIZE] = 1
 
         val topology = builder.createTopology()!!
 
@@ -133,12 +138,12 @@ class KumulusStormTransformerTest {
             }
 
             kumulusTopology.onBusyBoltHook = { comp, _, busyNanos, _ ->
-                busyTimeMap.compute(comp, { _, v->
+                busyTimeMap.compute(comp) { _, v->
                     when (v) {
                         null -> busyNanos
                         else -> busyNanos + v
                     }
-                })
+                }
             }
 
             kumulusTopology.prepare(10, TimeUnit.SECONDS)
@@ -158,7 +163,7 @@ class KumulusStormTransformerTest {
                 println("Component $bolt waited a total of ${waitMillis}ms during the test execution")
             }
         } else {
-            val cluster = LocalCluster()
+            val cluster = LocalCluster("localhost", 2181)
             cluster.submitTopology("testtopology", config, topology)
             finish.await()
             logger.info { "Processed $TOTAL_ITERATIONS end-to-end messages in ${System.currentTimeMillis() - start.get()}ms" }
@@ -298,7 +303,7 @@ class KumulusStormTransformerTest {
             }
         }
 
-        override fun open(conf: MutableMap<Any?, Any?>?, context: TopologyContext?, collector: SpoutOutputCollector?) {
+        override fun open(conf: MutableMap<String, Any?>?, context: TopologyContext?, collector: SpoutOutputCollector?) {
             this.collector = collector
             start.compareAndSet(0L, System.currentTimeMillis())
         }
@@ -344,7 +349,7 @@ class KumulusStormTransformerTest {
 
         private var count = 0
 
-        override fun prepare(stormConf: MutableMap<Any?, Any?>?, context: TopologyContext?) {
+        override fun prepare(stormConf: MutableMap<String, Any?>?, context: TopologyContext?) {
             this.context = context!!
             histogram = Histogram(4)
             super.prepare(stormConf, context)

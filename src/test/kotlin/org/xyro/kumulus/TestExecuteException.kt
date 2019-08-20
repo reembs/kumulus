@@ -66,7 +66,7 @@ class TestExecuteException {
 
     class TestExecuteExceptionBolt : IRichBolt {
         override fun execute(input: Tuple) = throw RuntimeException("This exception should be thrown")
-        override fun prepare(p0: MutableMap<Any?, Any?>?, p1: TopologyContext?, p2: OutputCollector) {}
+        override fun prepare(p0: MutableMap<String, Any?>?, p1: TopologyContext?, p2: OutputCollector) {}
         override fun cleanup() = Unit
         override fun getComponentConfiguration(): MutableMap<String, Any> = mutableMapOf()
         override fun declareOutputFields(p0: OutputFieldsDeclarer) = Unit

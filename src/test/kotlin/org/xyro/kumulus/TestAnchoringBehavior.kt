@@ -61,7 +61,7 @@ class TestAnchoringBehavior {
         private var index: Int = 0
         private var lastCall: Long? = 0
 
-        override fun open(conf: MutableMap<Any?, Any?>?, context: TopologyContext?, collector: SpoutOutputCollector?) {
+        override fun open(conf: MutableMap<String, Any?>?, context: TopologyContext?, collector: SpoutOutputCollector?) {
             super.open(conf, context, collector)
             this.index = 0
             this.lastCall = null
@@ -91,7 +91,7 @@ class TestAnchoringBehavior {
             collector.ack(input)
         }
 
-        override fun prepare(p0: MutableMap<Any?, Any?>?, p1: TopologyContext?, p2: OutputCollector?) {
+        override fun prepare(p0: MutableMap<String, Any?>?, p1: TopologyContext?, p2: OutputCollector?) {
             this.collector = p2!!
         }
 
