@@ -3,17 +3,13 @@ package org.xyro.kumulus
 import mu.KotlinLogging
 import org.apache.storm.Config
 import org.apache.storm.spout.SpoutOutputCollector
-import org.apache.storm.task.OutputCollector
 import org.apache.storm.task.TopologyContext
 import org.apache.storm.topology.BasicOutputCollector
-import org.apache.storm.topology.IRichBolt
 import org.apache.storm.topology.OutputFieldsDeclarer
 import org.apache.storm.topology.base.BaseBasicBolt
 import org.apache.storm.tuple.Fields
 import org.apache.storm.tuple.Tuple
 import org.junit.Test
-import org.xyro.kumulus.KumulusStormTransformer
-import org.xyro.kumulus.KumulusTopology
 import java.util.concurrent.TimeUnit
 
 class TestSingleAcking {

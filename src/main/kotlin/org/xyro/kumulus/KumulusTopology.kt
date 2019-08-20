@@ -205,14 +205,16 @@ class KumulusTopology(
             spout: KumulusSpout,
             spoutMessageId: Any?,
             timeoutTasks: List<Int>,
-            failedTasks: List<Int>
+            failedTasks: List<Int>,
+            callback: () -> Unit
     ) {
         spout.queue.add(AckMessage(
                 spout,
                 spoutMessageId,
                 timeoutTasks.isEmpty() && failedTasks.isEmpty(),
                 timeoutTasks.map { this.taskIdToComponent[it]!!.componentId },
-                failedTasks.map { this.taskIdToComponent[it]!!.componentId }
+                failedTasks.map { this.taskIdToComponent[it]!!.componentId },
+                callback
         ))
     }
 

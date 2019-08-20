@@ -21,7 +21,7 @@ class TestAllowExtraAckingMode {
         val builder = org.apache.storm.topology.TopologyBuilder()
         val config: MutableMap<String, Any> = mutableMapOf()
 
-        config[Config.TOPOLOGY_MAX_SPOUT_PENDING] = 5L
+        config[Config.TOPOLOGY_MAX_SPOUT_PENDING] = MAX_SPOUT_PENDING
         config[Config.TOPOLOGY_MESSAGE_TIMEOUT_SECS] = 1L
         config[KumulusTopology.CONF_THREAD_POOL_CORE_SIZE] = 5L
         config[KumulusTopology.CONF_EXTRA_ACKING] = true
@@ -56,11 +56,16 @@ class TestAllowExtraAckingMode {
     }
 
     class TestSpout: DummySpout({ it.declare(Fields("id")) }) {
-        override fun fail(msgId: Any?) = Unit
-        override fun ack(msgId: Any?) = Unit
+        override fun fail(msgId: Any?) { inFlight.decrementAndGet() }
+        override fun ack(msgId: Any?) { inFlight.decrementAndGet() }
         override fun nextTuple() {
             val messageId = UUID.randomUUID().toString()
             collector.emit(listOf(messageId), messageId)
+            val currentPending = inFlight.incrementAndGet()
+            if (currentPending > MAX_SPOUT_PENDING) {
+                throw Exception("Current in-flight tuples ($currentPending) exceeded the " +
+                        "max-spout-pending configuration ($MAX_SPOUT_PENDING).")
+            }
         }
     }
 
@@ -82,7 +87,10 @@ class TestAllowExtraAckingMode {
     }
 
     companion object {
+        private const val MAX_SPOUT_PENDING = 5L
+
         private val logger = KotlinLogging.logger {}
         private val executions = AtomicInteger(0)
+        private val inFlight = AtomicInteger(0)
     }
 }

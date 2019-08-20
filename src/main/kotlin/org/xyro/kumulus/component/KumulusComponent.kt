@@ -85,5 +85,6 @@ class AckMessage(
         val spoutMessageId: Any?,
         val ack: Boolean,
         val timeoutComponents: List<String>,
-        val failedComponents: List<String>
+        val failedComponents: List<String>,
+        val callback: () -> Unit
 ) : KumulusMessage(spout)
