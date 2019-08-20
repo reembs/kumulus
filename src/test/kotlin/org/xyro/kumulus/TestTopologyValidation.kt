@@ -9,8 +9,7 @@ import org.apache.storm.topology.base.BaseRichSpout
 import org.apache.storm.tuple.Fields
 import org.apache.storm.tuple.Tuple
 import org.junit.Test
-import org.xyro.kumulus.KumulusStormTransformer
-import org.xyro.kumulus.KumulusStormTransformer.*
+import org.xyro.kumulus.KumulusStormTransformer.KumulusTopologyValidationException
 
 class TestTopologyValidation {
     @Test(expected = KumulusTopologyValidationException::class)

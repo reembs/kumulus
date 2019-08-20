@@ -8,10 +8,8 @@ import org.apache.storm.topology.OutputFieldsDeclarer
 import org.apache.storm.tuple.Fields
 import org.apache.storm.tuple.Tuple
 import org.junit.Test
-import org.xyro.kumulus.KumulusStormTransformer
 import org.xyro.kumulus.KumulusTopology
 import java.util.concurrent.TimeUnit
-import java.util.concurrent.TimeoutException
 
 class TestExecuteException {
     @Test(expected = KumulusTopology.KumulusTopologyCrashedException::class, timeout = 5000)

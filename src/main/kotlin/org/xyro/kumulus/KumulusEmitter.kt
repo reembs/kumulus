@@ -10,7 +10,8 @@ interface KumulusEmitter {
             spout: KumulusSpout,
             spoutMessageId: Any?,
             timeoutTasks: List<Int>,
-            failedTasks: List<Int>
+            failedTasks: List<Int>,
+            callback: () -> Unit
     )
     fun throwException(t: Throwable)
 }

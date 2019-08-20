@@ -10,16 +10,10 @@ import org.apache.storm.topology.OutputFieldsDeclarer
 import org.apache.storm.topology.base.BaseBasicBolt
 import org.apache.storm.tuple.Fields
 import org.apache.storm.tuple.Tuple
-import org.hamcrest.core.AnyOf
-import org.hamcrest.core.Is
-import org.junit.Assert.assertThat
 import org.junit.Test
-import org.xyro.kumulus.component.KumulusTimeoutNotificationSpout
 import java.util.*
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
-import java.util.regex.Matcher
-import kotlin.test.assertSame
 import kotlin.test.assertTrue
 
 class TestMultipleSpoutsMaxPendingLimit {

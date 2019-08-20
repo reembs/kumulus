@@ -19,8 +19,6 @@ import org.junit.Ignore
 import org.junit.Test
 import org.xyro.kumulus.KumulusStormTransformer
 import org.xyro.kumulus.KumulusTopology
-import java.io.FileOutputStream
-import java.io.PrintWriter
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
