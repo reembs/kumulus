@@ -24,7 +24,7 @@ class KumulusSpout(
     private val deactivationLock = Any()
     private val deactivated = AtomicBoolean(false)
 
-    val queue = LinkedBlockingQueue<AckMessage>()
+    val queue = LinkedBlockingQueue<Any>()
 
     fun prepare(collector: KumulusSpoutCollector) {
         logger.debug { "Created spout '$componentId' with taskId $taskId (index: ${context.thisTaskIndex}). Object hashcode: ${this.hashCode()}" }
@@ -69,6 +69,7 @@ class KumulusSpout(
     }
 
     fun start(topology: KumulusTopology) {
+        logger.error { "[KMLSDBG] Starting spout ${this.componentId}" }
         Thread {
             try {
                 while (true) {
@@ -79,7 +80,13 @@ class KumulusSpout(
                     Thread.sleep(topology.readyPollSleepTime)
                 }
                 while (true) {
-                    mainLoopMethod(topology.acker)
+                    if (isReady.get()) {
+                        if (topology.acker.waitForSpoutAvailability()) {
+                            queue.add(TopologyAvailable())
+                        }
+                    } else {
+                        Thread.sleep(10)
+                    }
                     if (!isReady.get()) {
                         spout.deactivate()
                         return@Thread
@@ -93,30 +100,43 @@ class KumulusSpout(
             isDaemon = true
             start()
         }
+        Thread {
+            mainLoopMethod(topology)
+        }.apply {
+            isDaemon = true
+            name = "[SpoutMain] $componentId-$taskId"
+            start()
+        }
     }
 
-    private fun mainLoopMethod(acker: KumulusAcker) {
-        queue.poll()?.also { ackMessage ->
-            if (ackMessage.ack) {
-                ack(ackMessage.spoutMessageId)
-            } else {
-                fail(ackMessage.spoutMessageId, ackMessage.timeoutComponents, ackMessage.failedComponents)
-            }
-            ackMessage.callback()
-        }.let {
-            if (it == null && isReady.get()) {
-                if (acker.waitForSpoutAvailability()) {
-                    if (inUse.compareAndSet(false, true)) {
-                        try {
-                            if (isReady.get()) {
-                                nextTuple()
-                            }
-                        } finally {
-                            inUse.set(false)
+    private fun mainLoopMethod(topology: KumulusTopology) {
+        while(true) {
+            try {
+                when (val polledItem = queue.take()) {
+                    is AckMessage -> {
+                        // Must callback before calling ack/fail to prevent deadlock in case of max-spout-pending = 1
+                        // and topologies that emit in ack/fail hooks
+                        polledItem.callback()
+                        if (polledItem.ack) {
+                            ack(polledItem.spoutMessageId)
+                        } else {
+                            fail(polledItem.spoutMessageId, polledItem.timeoutComponents, polledItem.failedComponents)
                         }
                     }
+                    is TopologyAvailable -> {
+                        if (isReady.get()) {
+                            nextTuple()
+                        }
+                    }
+                    else ->
+                        throw Exception("Unsupported type: ${polledItem.javaClass.canonicalName}")
                 }
+            } catch (e: Exception) {
+                logger.error("An uncaught exception in spout '$componentId' (taskId: $taskId) had forced a Kumulus shutdown", e)
+                topology.throwException(e)
             }
         }
     }
+
+    class TopologyAvailable
 }

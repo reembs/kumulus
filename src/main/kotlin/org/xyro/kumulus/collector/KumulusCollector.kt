@@ -38,10 +38,10 @@ abstract class KumulusCollector<T: KumulusComponent>(
     ) : MutableList<Int> {
         val ret = mutableListOf<Int>()
 
-        var executes: List<Pair<KumulusComponent, KumulusTuple>> = listOf()
+        val executes: MutableList<Pair<KumulusComponent, KumulusTuple>> = mutableListOf()
 
         component.groupingStateMap[streamId]?.let { streamTargets: Map<String, CustomStreamGrouping> ->
-            streamTargets.forEach { _, grouping ->
+            streamTargets.forEach { (_, grouping) ->
                 val tasks = grouping.chooseTasks(this.component.taskId, tuple)
 
                 val emitToInstance= emitter.getDestinations(tasks)

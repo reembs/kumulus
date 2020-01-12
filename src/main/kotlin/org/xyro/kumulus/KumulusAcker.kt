@@ -50,7 +50,7 @@ class KumulusAcker(
                     do {
                         spoutAvailable = waitForSpoutAvailability()
                     } while (!spoutAvailable)
-                    val currentPending = currentPending.incrementAndGet()
+                    val currentPending = currentPending.get()
                     if (maxSpoutPending > 0) {
                         if (currentPending > maxSpoutPending) {
                             logger.error { "Exceeding max-spout-pending of $maxSpoutPending, current $currentPending" }
@@ -72,7 +72,7 @@ class KumulusAcker(
                                         removedState.pendingTasks.map { it.key },
                                         removedState.failedTasks.toList()
                                 ) {
-                                    decrementPending()
+                                    decrementPending(messageId)
                                 }
                             }
                         }
@@ -123,15 +123,19 @@ class KumulusAcker(
         }
     }
 
-    fun waitForSpoutAvailability() : Boolean {
+    fun waitForSpoutAvailability(): Boolean {
         if (maxSpoutPending > 0) {
             synchronized(waitObject) {
                 if (currentPending.get() >= maxSpoutPending) {
                     logger.trace { "Waiting for spout availability" }
-                    waitObject.wait(spoutAvailabilityCheckTimeout)
+                    waitObject.wait()
+                    currentPending.incrementAndGet()
                 }
             }
-            return currentPending.get() < maxSpoutPending
+            if (currentPending.get() >= maxSpoutPending) {
+                throw RuntimeException("Max-spout-pending exceeded")
+            }
+            return true
         }
         return true
     }
@@ -163,7 +167,7 @@ class KumulusAcker(
                     val removedState = state.remove(spoutMessageId)
                     if (removedState != null) {
                         notifySpout(messageState.spout, spoutMessageId, messageState.failedTasks.toList()) {
-                            decrementPending()
+                            decrementPending(spoutMessageId)
                         }
                     } else {
                         logger.debug { "Race while closing tuple-tree, ignoring duplicate" }
@@ -204,9 +208,10 @@ class KumulusAcker(
         emitter.completeMessageProcessing(spout, spoutMessageId, timeoutTasks, failedTasks, callback)
     }
 
-    private fun decrementPending() {
+    private fun decrementPending(messageId: Any) {
         if (maxSpoutPending > 0) {
             synchronized(waitObject) {
+                logger.debug { "Decrement for $messageId, post-sync" }
                 val currentPending = currentPending.decrementAndGet()
                 if(currentPending >= maxSpoutPending) {
                     logger.error { "Max spout pending must have exceeded limit of $maxSpoutPending, current after decrement is $currentPending" }

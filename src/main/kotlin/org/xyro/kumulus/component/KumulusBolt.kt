@@ -28,7 +28,7 @@ class KumulusBolt(
     private val bolt : IRichBolt = componentInstance
 
     fun prepare(collector: KumulusBoltCollector) {
-        logger.info { "Created bolt '$componentId' with taskId $taskId (index: ${context.thisTaskIndex}). Object hashcode: ${this.hashCode()}" }
+        logger.debug { "Created bolt '$componentId' with taskId $taskId (index: ${context.thisTaskIndex}). Object hashcode: ${this.hashCode()}" }
         bolt.prepare(config, context, OutputCollector(collector))
         super.prepare()
     }

@@ -73,7 +73,7 @@ class TestMultipleSpoutsMaxPendingLimit {
         for (i in 0 until 50) {
             Thread.sleep(100)
             val actual = SleepingBolt.inFlight.get()
-            assertTrue { actual <= 1 }
+            assertTrue("Max in-flight exceeds allowed maximum $actual != 1") { actual <= 1 }
         }
 
         kumulusTopology.stop()
