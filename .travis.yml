@@ -1,5 +1,5 @@
 language: java
-jdk: openjdk11
+jdk: openjdk14
 sudo: false
 install:
   - mvn install -DskipTests=true -Dmaven.javadoc.skip=true -B -V -Dgpg.skip=true
