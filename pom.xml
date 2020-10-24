@@ -39,7 +39,6 @@
     <properties>
         <kotlin.version>1.3.31</kotlin.version>
         <storm.version>1.2.2</storm.version>
-        <junit.version>4.12</junit.version>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <main.class>org.xyro.kumulus.MainKt</main.class>
     </properties>
@@ -70,9 +69,9 @@
         </dependency>
         <!-- tests -->
         <dependency>
-            <groupId>junit</groupId>
-            <artifactId>junit</artifactId>
-            <version>${junit.version}</version>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter-api</artifactId>
+            <version>5.7.0</version>
             <scope>test</scope>
         </dependency>
         <dependency>
