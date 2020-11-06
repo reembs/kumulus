@@ -47,7 +47,7 @@ class TestMultipleSpoutsMaxPendingLimit {
         kumulusTopology.stop()
 
         logger.info { "Executed ${executions.get()} times, no errors" }
-        assertTrue { executions.get() > 100 }
+        assertTrue { executions.get() > 10 }
     }
 
     @Test
