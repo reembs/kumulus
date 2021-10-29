@@ -13,6 +13,7 @@ import org.xyro.kumulus.component.KumulusBolt
 import org.xyro.kumulus.component.KumulusComponent
 import org.xyro.kumulus.component.KumulusMessage
 import org.xyro.kumulus.component.KumulusSpout
+import org.xyro.kumulus.component.PrepareMessage
 import org.xyro.kumulus.component.SpoutPrepareMessage
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.RejectedExecutionHandler
