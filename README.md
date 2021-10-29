@@ -23,7 +23,7 @@ Include via maven
 <dependency>
     <groupId>org.xyro</groupId>
     <artifactId>kumulus</artifactId>
-    <version>0.1.36</version>
+    <version>0.1.39</version>
 </dependency>
 ```
 
