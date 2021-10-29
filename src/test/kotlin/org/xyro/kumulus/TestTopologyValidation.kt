@@ -18,7 +18,7 @@ class TestTopologyValidation {
         val config: MutableMap<String, Any> = mutableMapOf()
         builder.setSpout("spout", DummySpout())
         builder.setBolt("bolt", DummyBolt())
-                .noneGrouping("missing-bolt")
+            .noneGrouping("missing-bolt")
         val stormTopology = builder.createTopology()!!
         KumulusStormTransformer.initializeTopology(stormTopology, config, "test")
     }
@@ -32,7 +32,7 @@ class TestTopologyValidation {
         builder.setBolt("bolt", DummyBolt())
 
         builder.setBolt("bolt2", DummyBolt())
-                .noneGrouping("bolt", "missing-stream")
+            .noneGrouping("bolt", "missing-stream")
 
         val stormTopology = builder.createTopology()!!
         KumulusStormTransformer.initializeTopology(stormTopology, config, "test")
@@ -44,12 +44,15 @@ class TestTopologyValidation {
         val config: MutableMap<String, Any> = mutableMapOf()
         builder.setSpout("spout", DummySpout())
 
-        builder.setBolt("bolt", DummyBolt({
-            it.declareStream("stream", Fields("num"))
-        })).noneGrouping("spout")
+        builder.setBolt(
+            "bolt",
+            DummyBolt({
+                it.declareStream("stream", Fields("num"))
+            })
+        ).noneGrouping("spout")
 
         builder.setBolt("bolt2", DummyBolt())
-                .fieldsGrouping("bolt", "stream", Fields("num", "non-existing-field"))
+            .fieldsGrouping("bolt", "stream", Fields("num", "non-existing-field"))
 
         val stormTopology = builder.createTopology()!!
         KumulusStormTransformer.initializeTopology(stormTopology, config, "test")
@@ -61,12 +64,15 @@ class TestTopologyValidation {
         val config: MutableMap<String, Any> = mutableMapOf()
         builder.setSpout("spout", DummySpout())
 
-        builder.setBolt("bolt", DummyBolt({
-            it.declareStream("stream", Fields("num"))
-        })).noneGrouping("spout")
+        builder.setBolt(
+            "bolt",
+            DummyBolt({
+                it.declareStream("stream", Fields("num"))
+            })
+        ).noneGrouping("spout")
 
         builder.setBolt("bolt2", DummyBolt())
-                .fieldsGrouping("bolt", "stream", Fields("num"))
+            .fieldsGrouping("bolt", "stream", Fields("num"))
 
         val stormTopology = builder.createTopology()!!
         KumulusStormTransformer.initializeTopology(stormTopology, config, "test")

@@ -9,7 +9,6 @@ import org.apache.storm.topology.OutputFieldsDeclarer
 import org.apache.storm.tuple.Fields
 import org.apache.storm.tuple.Tuple
 import org.junit.Test
-import org.xyro.kumulus.component.KumulusTimeoutNotificationSpout
 import java.util.*
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
@@ -31,18 +30,18 @@ class TestAllowExtraAckingMode {
         builder.setSpout("spout3", TestSpout())
 
         builder.setBolt("acking-bolt", TestBolt())
-                .allGrouping("spout")
-                .allGrouping("spout2")
-                .allGrouping("spout3")
+            .allGrouping("spout")
+            .allGrouping("spout2")
+            .allGrouping("spout3")
 
         builder.setBolt("acking-bolt2", TestBolt())
-                .allGrouping("spout")
-                .allGrouping("spout2")
-                .allGrouping("spout3")
+            .allGrouping("spout")
+            .allGrouping("spout2")
+            .allGrouping("spout3")
 
         val stormTopology = builder.createTopology()!!
         val kumulusTopology =
-                KumulusStormTransformer.initializeTopology(stormTopology, config, "test")
+            KumulusStormTransformer.initializeTopology(stormTopology, config, "test")
         kumulusTopology.prepare(10, TimeUnit.SECONDS)
         kumulusTopology.start()
         Thread.sleep(5000)
@@ -55,7 +54,7 @@ class TestAllowExtraAckingMode {
         assertTrue { executions.get() > 100 }
     }
 
-    class TestSpout: DummySpout({ it.declare(Fields("id")) }) {
+    class TestSpout : DummySpout({ it.declare(Fields("id")) }) {
         override fun fail(msgId: Any?) { inFlight.decrementAndGet() }
         override fun ack(msgId: Any?) { inFlight.decrementAndGet() }
         override fun nextTuple() {
@@ -63,13 +62,15 @@ class TestAllowExtraAckingMode {
             collector.emit(listOf(messageId), messageId)
             val currentPending = inFlight.incrementAndGet()
             if (currentPending > MAX_SPOUT_PENDING) {
-                throw Exception("Current in-flight tuples ($currentPending) exceeded the " +
-                        "max-spout-pending configuration ($MAX_SPOUT_PENDING).")
+                throw Exception(
+                    "Current in-flight tuples ($currentPending) exceeded the " +
+                        "max-spout-pending configuration ($MAX_SPOUT_PENDING)."
+                )
             }
         }
     }
 
-    class TestBolt: IRichBolt {
+    class TestBolt : IRichBolt {
         private lateinit var collector: OutputCollector
 
         override fun execute(input: Tuple) {

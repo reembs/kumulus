@@ -12,11 +12,11 @@ import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicLong
 
 class KumulusAcker(
-        private val emitter: KumulusEmitter,
-        private val maxSpoutPending: Long,
-        private val allowExtraAcking: Boolean,
-        private val messageTimeoutMillis: Long,
-        private val spoutAvailabilityCheckTimeout: Long
+    private val emitter: KumulusEmitter,
+    private val maxSpoutPending: Long,
+    private val allowExtraAcking: Boolean,
+    private val messageTimeoutMillis: Long,
+    private val spoutAvailabilityCheckTimeout: Long
 ) {
     companion object {
         private val logger = KotlinLogging.logger {}
@@ -29,7 +29,7 @@ class KumulusAcker(
     private val timeoutExecutor = ScheduledThreadPoolExecutor(1)
 
     init {
-        if(maxSpoutPending < 0) {
+        if (maxSpoutPending < 0) {
             throw IllegalArgumentException("maxSpoutPending = $maxSpoutPending")
         }
     }
@@ -41,7 +41,7 @@ class KumulusAcker(
         } else {
             MessageState(component).let { messageState ->
                 synchronized(completeLock) {
-                    if(state[messageId] != null) {
+                    if (state[messageId] != null) {
                         logger.error { "messageId $messageId is currently being processes. Duplicate IDs are not allowed" }
                         throw RuntimeException("Duplicate ID: $messageId")
                     }
@@ -62,21 +62,24 @@ class KumulusAcker(
                 }
 
                 if (messageTimeoutMillis > 0) {
-                    timeoutExecutor.schedule({
-                        state[messageId]?.let { messageState ->
-                            val removedState = state.remove(messageId)
-                            if (removedState != null) {
-                                notifySpout(
+                    timeoutExecutor.schedule(
+                        {
+                            state[messageId]?.let { messageState ->
+                                val removedState = state.remove(messageId)
+                                if (removedState != null) {
+                                    notifySpout(
                                         messageState.spout,
                                         messageId,
                                         removedState.pendingTasks.map { it.key },
                                         removedState.failedTasks.toList()
-                                ) {
-                                    decrementPending()
+                                    ) {
+                                        decrementPending()
+                                    }
                                 }
                             }
-                        }
-                    }, messageTimeoutMillis, TimeUnit.MILLISECONDS)
+                        },
+                        messageTimeoutMillis, TimeUnit.MILLISECONDS
+                    )
                 }
             }
         }
@@ -89,8 +92,8 @@ class KumulusAcker(
                 return
             }
             val messageState =
-                    state[messageId] ?:
-                            error("State missing for messageId $messageId while emitting from $component to $dest. Tuple: $tuple")
+                state[messageId]
+                    ?: error("State missing for messageId $messageId while emitting from $component to $dest. Tuple: $tuple")
             messageState.pendingTasks.put(dest, tuple.kTuple)
         }
     }
@@ -123,7 +126,7 @@ class KumulusAcker(
         }
     }
 
-    fun waitForSpoutAvailability() : Boolean {
+    fun waitForSpoutAvailability(): Boolean {
         if (maxSpoutPending > 0) {
             synchronized(waitObject) {
                 if (currentPending.get() >= maxSpoutPending) {
@@ -149,7 +152,7 @@ class KumulusAcker(
     private fun checkComplete(messageState: MessageState, component: KumulusComponent, input: Tuple?) {
         (input as TupleImpl).spoutMessageId?.let { spoutMessageId ->
             val removedTask = messageState.pendingTasks.remove(component.taskId)
-            if(removedTask == null) {
+            if (removedTask == null) {
                 logger.debug {
                     "Key $spoutMessageId / ${component.taskId} was not found in execution map for $component"
                 }
@@ -158,7 +161,7 @@ class KumulusAcker(
                 if (messageState.pendingTasks.isEmpty()) {
                     logger.debug {
                         "[${component.componentId}/${component.taskId}] " +
-                                "Finished with messageId $spoutMessageId"
+                            "Finished with messageId $spoutMessageId"
                     }
                     val removedState = state.remove(spoutMessageId)
                     if (removedState != null) {
@@ -176,12 +179,12 @@ class KumulusAcker(
     private fun debugMessage(component: KumulusComponent, spoutMessageId: Any, messageState: MessageState) {
         logger.debug {
             "Pending task from $component for message $spoutMessageId was completed. " +
-                    "Current pending tuples are:" + messageState.pendingTasks.let {
+                "Current pending tuples are:" + messageState.pendingTasks.let {
                 if (it.isEmpty()) {
                     " Empty\n"
                 } else {
                     val sb = StringBuilder("\n")
-                    it.forEach {(k ,v) ->
+                    it.forEach { (k, v) ->
                         sb.append("$k: $v\n")
                     }
                     sb.toString()
@@ -195,11 +198,11 @@ class KumulusAcker(
     }
 
     private fun notifySpout(
-            spout: KumulusSpout,
-            spoutMessageId: Any?,
-            timeoutTasks: List<Int>,
-            failedTasks: List<Int>,
-            callback: () -> Unit
+        spout: KumulusSpout,
+        spoutMessageId: Any?,
+        timeoutTasks: List<Int>,
+        failedTasks: List<Int>,
+        callback: () -> Unit
     ) {
         emitter.completeMessageProcessing(spout, spoutMessageId, timeoutTasks, failedTasks, callback)
     }
@@ -208,7 +211,7 @@ class KumulusAcker(
         if (maxSpoutPending > 0) {
             synchronized(waitObject) {
                 val currentPending = currentPending.decrementAndGet()
-                if(currentPending >= maxSpoutPending) {
+                if (currentPending >= maxSpoutPending) {
                     logger.error { "Max spout pending must have exceeded limit of $maxSpoutPending, current after decrement is $currentPending" }
                     assert(false) {
                         "Max spout pending must have exceeded limit of $maxSpoutPending, current after decrement is $currentPending"
@@ -224,7 +227,7 @@ class KumulusAcker(
     }
 
     inner class MessageState(
-            val spout: KumulusSpout
+        val spout: KumulusSpout
     ) {
         val pendingTasks = ConcurrentHashMap<Int, Tuple>()
         val failedTasks = ConcurrentHashSet<Int>()

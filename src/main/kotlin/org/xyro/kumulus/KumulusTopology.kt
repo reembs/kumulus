@@ -14,8 +14,8 @@ import java.util.concurrent.atomic.AtomicReference
 
 @Suppress("MemberVisibilityCanBePrivate")
 class KumulusTopology(
-        private val components: List<KumulusComponent>,
-        config: Map<String, Any>
+    private val components: List<KumulusComponent>,
+    config: Map<String, Any>
 ) : KumulusEmitter {
     private val maxSpoutPending: Long = config[Config.TOPOLOGY_MAX_SPOUT_PENDING] as Long? ?: 0L
     private val poolSize = (config[CONF_THREAD_POOL_CORE_SIZE] as? Long ?: 1L).toInt()
@@ -27,13 +27,13 @@ class KumulusTopology(
     private val crashException = AtomicReference<Throwable>()
     private val shutdownTimeoutSecs = config[CONF_SHUTDOWN_TIMEOUT_SECS] as? Long ?: 10L
     private val taskIdToComponent: Map<Int, KumulusComponent> = this.components
-            .map { Pair(it.taskId, it) }
-            .toMap()
+        .map { Pair(it.taskId, it) }
+        .toMap()
     private val atomicThreadsInUse = AtomicInteger(0)
     private val atomicMaxThreadsInUse = AtomicInteger(0)
 
     private val scheduledExecutorPoolSize: Int =
-            (config[CONF_SCHEDULED_EXECUTOR_THREAD_POOL_SIZE] as? Long ?: 5L).toInt()
+        (config[CONF_SCHEDULED_EXECUTOR_THREAD_POOL_SIZE] as? Long ?: 5L).toInt()
     private val rejectedExecutionHandler = RejectedExecutionHandler { _, _ ->
         logger.error { "Execution was rejected, current pool size: $scheduledExecutorPoolSize" }
     }
@@ -63,11 +63,11 @@ class KumulusTopology(
         logger.info { "Initializing a Kumulus topology" }
         logger.info { "Kumulus topology configuration: $config" }
         this.acker = KumulusAcker(
-                this,
-                maxSpoutPending,
-                config[CONF_EXTRA_ACKING] as? Boolean ?: false,
-                (config[Config.TOPOLOGY_MESSAGE_TIMEOUT_SECS] as? Long)?.times(1000) ?: 0L,
-                config[CONF_SPOUT_AVAILABILITY_PASS_TIMEOUT] as? Long ?: 50L
+            this,
+            maxSpoutPending,
+            config[CONF_EXTRA_ACKING] as? Boolean ?: false,
+            (config[Config.TOPOLOGY_MESSAGE_TIMEOUT_SECS] as? Long)?.times(1000) ?: 0L,
+            config[CONF_SPOUT_AVAILABILITY_PASS_TIMEOUT] as? Long ?: 50L
         )
     }
 
@@ -118,35 +118,42 @@ class KumulusTopology(
     private fun prepare() {
         logger.info { "Kumulus is starting prepare process for ${components.size} components" }
         components.forEach { component ->
-            boltExecutionPool.enqueue(when (component) {
-                is KumulusSpout ->
-                    SpoutPrepareMessage(
-                            component, KumulusSpoutCollector(component, this, acker, onReportErrorHook))
-                is KumulusBolt -> {
-                    BoltPrepareMessage(
-                            component, KumulusBoltCollector(component, this, acker, onReportErrorHook))
+            boltExecutionPool.enqueue(
+                when (component) {
+                    is KumulusSpout ->
+                        SpoutPrepareMessage(
+                            component, KumulusSpoutCollector(component, this, acker, onReportErrorHook)
+                        )
+                    is KumulusBolt -> {
+                        BoltPrepareMessage(
+                            component, KumulusBoltCollector(component, this, acker, onReportErrorHook)
+                        )
+                    }
+                    else ->
+                        throw UnsupportedOperationException()
                 }
-                else ->
-                    throw UnsupportedOperationException()
-            })
+            )
 
             if (component is KumulusBolt) {
                 component.tickSecs?.toLong()?.let { tickSecs ->
-                    scheduledExecutor.scheduleWithFixedDelay({
-                        if (started.get()) {
-                            try {
-                                val tuple = KumulusTuple(
+                    scheduledExecutor.scheduleWithFixedDelay(
+                        {
+                            if (started.get()) {
+                                try {
+                                    val tuple = KumulusTuple(
                                         systemComponent,
                                         Constants.SYSTEM_TICK_STREAM_ID,
                                         listOf(),
                                         null
-                                )
-                                boltExecutionPool.enqueue(ExecuteMessage(component, tuple))
-                            } catch (e: Exception) {
-                                logger.error(e) { "Error in sending tick tuple" }
+                                    )
+                                    boltExecutionPool.enqueue(ExecuteMessage(component, tuple))
+                                } catch (e: Exception) {
+                                    logger.error(e) { "Error in sending tick tuple" }
+                                }
                             }
-                        }
-                    }, tickSecs, tickSecs, TimeUnit.SECONDS)
+                        },
+                        tickSecs, tickSecs, TimeUnit.SECONDS
+                    )
                 }
             }
         }
@@ -159,9 +166,9 @@ class KumulusTopology(
     fun start(block: Boolean = false) {
         this.resetMetrics()
         val spouts = components.asSequence()
-                .filter { it is KumulusSpout }
-                .map { it as KumulusSpout }
-                .toList()
+            .filter { it is KumulusSpout }
+            .map { it as KumulusSpout }
+            .toList()
 
         spouts.forEach { spout ->
             spout.start(this)
@@ -202,20 +209,22 @@ class KumulusTopology(
 
     // KumulusEmitter impl
     override fun completeMessageProcessing(
-            spout: KumulusSpout,
-            spoutMessageId: Any?,
-            timeoutTasks: List<Int>,
-            failedTasks: List<Int>,
-            callback: () -> Unit
+        spout: KumulusSpout,
+        spoutMessageId: Any?,
+        timeoutTasks: List<Int>,
+        failedTasks: List<Int>,
+        callback: () -> Unit
     ) {
-        spout.queue.add(AckMessage(
+        spout.queue.add(
+            AckMessage(
                 spout,
                 spoutMessageId,
                 timeoutTasks.isEmpty() && failedTasks.isEmpty(),
                 timeoutTasks.map { this.taskIdToComponent[it]!!.componentId },
                 failedTasks.map { this.taskIdToComponent[it]!!.componentId },
                 callback
-        ))
+            )
+        )
     }
 
     // KumulusEmitter impl
@@ -243,16 +252,17 @@ class KumulusTopology(
                                 is KumulusSpout -> c.prepare(message.collector as KumulusSpoutCollector)
                                 is KumulusBolt -> c.prepare(message.collector as KumulusBoltCollector)
                                 else -> throw UnsupportedOperationException(
-                                        "Class ${c.javaClass.canonicalName} is not a valid Kumulus component")
+                                    "Class ${c.javaClass.canonicalName} is not a valid Kumulus component"
+                                )
                             }
                         } finally {
                             onBoltPrepareFinishHook?.let {
-                                it(c.componentId, c.taskId,System.nanoTime() - c.prepareStart.get())
+                                it(c.componentId, c.taskId, System.nanoTime() - c.prepareStart.get())
                             }
                         }
                     }
                     is ExecuteMessage -> {
-                        if(c !is KumulusBolt) {
+                        if (c !is KumulusBolt) {
                             throw RuntimeException("Execute message got to a spout '${c.componentId}', this shouldn't happen.")
                         }
                         callBusyHook(c, message)
@@ -276,9 +286,12 @@ class KumulusTopology(
             if (queuePushbackWait <= 0L) {
                 boltExecutionPool.enqueue(message)
             } else {
-                scheduledExecutor.schedule({
-                    boltExecutionPool.enqueue(message)
-                }, queuePushbackWait, TimeUnit.MILLISECONDS)
+                scheduledExecutor.schedule(
+                    {
+                        boltExecutionPool.enqueue(message)
+                    },
+                    queuePushbackWait, TimeUnit.MILLISECONDS
+                )
             }
         }
     }
@@ -315,10 +328,10 @@ class KumulusTopology(
                     scheduledExecutor.submit {
                         try {
                             onBusyBoltHook(
-                                    bolt.componentId,
-                                    bolt.taskId,
-                                    System.nanoTime() - waitNanos,
-                                    message.tuple.kTuple
+                                bolt.componentId,
+                                bolt.taskId,
+                                System.nanoTime() - waitNanos,
+                                message.tuple.kTuple
                             )
                         } catch (e: Exception) {
                             logger.error("An exception was thrown from busy-hook callback, ignoring", e)
@@ -332,8 +345,7 @@ class KumulusTopology(
     }
 
     class KumulusTopologyCrashedException(exception: Throwable?) : RuntimeException(
-            "Kumulus topology had crashed due to an uncaught exception",
-            exception
+        "Kumulus topology had crashed due to an uncaught exception",
+        exception
     )
 }
-

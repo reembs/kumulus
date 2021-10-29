@@ -24,19 +24,19 @@ class TestSingleAcking {
 
         builder.setSpout("spout", TestSpout())
         builder.setBolt("bolt1", TestBolt())
-                .noneGrouping("spout")
+            .noneGrouping("spout")
         builder.setBolt("bolt2", TestBolt())
-                .noneGrouping("spout")
+            .noneGrouping("spout")
 
         val stormTopology = builder.createTopology()!!
         val kumulusTopology =
-                KumulusStormTransformer.initializeTopology(stormTopology, config, "test")
+            KumulusStormTransformer.initializeTopology(stormTopology, config, "test")
         kumulusTopology.prepare(10, TimeUnit.SECONDS)
         kumulusTopology.start(false)
         Thread.sleep(5000)
     }
 
-    class TestSpout: DummySpout({ it.declare(Fields("id")) }) {
+    class TestSpout : DummySpout({ it.declare(Fields("id")) }) {
         private var index: Int = 0
         private val emitted = mutableSetOf<Int>()
 

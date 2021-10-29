@@ -16,8 +16,8 @@ import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicLong
 
 abstract class KumulusComponent(
-        protected val config: Map<String, Any>,
-        val context: TopologyContext
+    protected val config: Map<String, Any>,
+    val context: TopologyContext
 ) {
     val inUse = AtomicBoolean(false)
     val isReady = AtomicBoolean(false)
@@ -43,7 +43,7 @@ abstract class KumulusComponent(
                     ShuffleGrouping()
                 } else if (grouping.is_set_fields) {
                     FieldsGrouping(grouping._fields, context.thisOutputFieldsForStreams[stream]!!)
-                } else if  (grouping.is_set_custom_serialized) {
+                } else if (grouping.is_set_custom_serialized) {
                     val customGrouping = Utils.javaDeserialize(grouping._custom_serialized, Serializable::class.java)!!
                     customGrouping as CustomStreamGrouping
                 } else {
@@ -66,25 +66,25 @@ abstract class KumulusComponent(
 
 abstract class KumulusMessage(val component: KumulusComponent)
 
-abstract class PrepareMessage<in T: KumulusComponent>(
-        component: KumulusComponent,
-        val collector: KumulusCollector<in T>
+abstract class PrepareMessage<in T : KumulusComponent>(
+    component: KumulusComponent,
+    val collector: KumulusCollector<in T>
 ) : KumulusMessage(component)
 
 class SpoutPrepareMessage(component: KumulusComponent, collector: KumulusSpoutCollector) :
-        PrepareMessage<KumulusSpout>(component, collector)
+    PrepareMessage<KumulusSpout>(component, collector)
 
 class BoltPrepareMessage(component: KumulusComponent, collector: KumulusBoltCollector) :
-        PrepareMessage<KumulusBolt>(component, collector)
+    PrepareMessage<KumulusBolt>(component, collector)
 
 class ExecuteMessage(component: KumulusComponent, val tuple: KumulusTuple) :
-        KumulusMessage(component)
+    KumulusMessage(component)
 
 class AckMessage(
-        spout: KumulusSpout,
-        val spoutMessageId: Any?,
-        val ack: Boolean,
-        val timeoutComponents: List<String>,
-        val failedComponents: List<String>,
-        val callback: () -> Unit
+    spout: KumulusSpout,
+    val spoutMessageId: Any?,
+    val ack: Boolean,
+    val timeoutComponents: List<String>,
+    val failedComponents: List<String>,
+    val callback: () -> Unit
 ) : KumulusMessage(spout)

@@ -8,7 +8,6 @@ import org.apache.storm.topology.OutputFieldsDeclarer
 import org.apache.storm.tuple.Fields
 import org.apache.storm.tuple.Tuple
 import org.junit.Test
-import org.xyro.kumulus.KumulusTopology
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.TimeoutException
 
@@ -24,11 +23,11 @@ class TestPrepareException {
 
         builder.setSpout("spout", TestSpout())
         builder.setBolt("prepare-exception-bolt", TestBolt(0))
-                .noneGrouping("spout")
+            .noneGrouping("spout")
 
         val stormTopology = builder.createTopology()!!
         val kumulusTopology =
-                KumulusStormTransformer.initializeTopology(stormTopology, config, "test")
+            KumulusStormTransformer.initializeTopology(stormTopology, config, "test")
         kumulusTopology.prepare(2, TimeUnit.SECONDS)
     }
 
@@ -43,15 +42,15 @@ class TestPrepareException {
 
         builder.setSpout("spout", TestSpout())
         builder.setBolt("prepare-exception-bolt", TestBolt(30))
-                .noneGrouping("spout")
+            .noneGrouping("spout")
 
         val stormTopology = builder.createTopology()!!
         val kumulusTopology =
-                KumulusStormTransformer.initializeTopology(stormTopology, config, "test")
+            KumulusStormTransformer.initializeTopology(stormTopology, config, "test")
         kumulusTopology.prepare(2, TimeUnit.SECONDS)
     }
 
-    class TestSpout: DummySpout({ it.declare(Fields()) }) {
+    class TestSpout : DummySpout({ it.declare(Fields()) }) {
         override fun nextTuple() {
             collector.emit(listOf(), Object())
         }

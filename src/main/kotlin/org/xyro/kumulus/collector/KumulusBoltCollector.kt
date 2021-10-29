@@ -9,16 +9,17 @@ import org.xyro.kumulus.component.KumulusBolt
 import org.xyro.kumulus.component.KumulusComponent
 
 class KumulusBoltCollector(
-        component: KumulusComponent,
-        private val emitter: KumulusEmitter,
-        acker: KumulusAcker,
-        errorHandler: ((String, Int, Throwable) -> Unit)?
+    component: KumulusComponent,
+    private val emitter: KumulusEmitter,
+    acker: KumulusAcker,
+    errorHandler: ((String, Int, Throwable) -> Unit)?
 ) : KumulusCollector<KumulusBolt>(
-        component,
-        emitter,
-        acker,
-        errorHandler
-), IOutputCollector {
+    component,
+    emitter,
+    acker,
+    errorHandler
+),
+    IOutputCollector {
     companion object {
         val logger = KotlinLogging.logger { }
     }

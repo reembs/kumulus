@@ -27,19 +27,19 @@ class KumulusStormTransformer {
          */
         @Suppress("UNCHECKED_CAST")
         @JvmStatic
-        fun initializeTopology(topology: StormTopology, rawConfig: MutableMap<String, Any>, stormId: String) : KumulusTopology {
+        fun initializeTopology(topology: StormTopology, rawConfig: MutableMap<String, Any>, stormId: String): KumulusTopology {
             val boltField = StormTopology::class.java.getDeclaredField("bolts")!!
             boltField.isAccessible = true
-            val serializedBoltsMap : Map<String, Bolt> = boltField.get(topology) as Map<String, Bolt>
-            val boltsMap : Map<String, IComponent> = serializedBoltsMap.entries.associate { (id, bolt) ->
+            val serializedBoltsMap: Map<String, Bolt> = boltField.get(topology) as Map<String, Bolt>
+            val boltsMap: Map<String, IComponent> = serializedBoltsMap.entries.associate { (id, bolt) ->
                 val boltObject = bolt._bolt_object!!
                 id to (Utils.javaDeserialize<Serializable>(boltObject._serialized_java, Serializable::class.java) as IComponent)
             }
 
             val spoutField = StormTopology::class.java.getDeclaredField("spouts")!!
             spoutField.isAccessible = true
-            val serializedSpoutsMap : Map<String, SpoutSpec> = spoutField.get(topology) as Map<String, SpoutSpec>
-            val spoutsMap : Map<String, IComponent> = serializedSpoutsMap.entries.associate { (id, spout) ->
+            val serializedSpoutsMap: Map<String, SpoutSpec> = spoutField.get(topology) as Map<String, SpoutSpec>
+            val spoutsMap: Map<String, IComponent> = serializedSpoutsMap.entries.associate { (id, spout) ->
                 val spoutObject = spout._spout_object!!
                 id to (Utils.javaDeserialize<Serializable>(spoutObject._serialized_java, Serializable::class.java) as IComponent)
             }
@@ -53,16 +53,16 @@ class KumulusStormTransformer {
 
             componentToSortedTasks[Constants.SYSTEM_COMPONENT_ID] = listOf(Constants.SYSTEM_TASK_ID.toInt())
             componentToStreamToFields[Constants.SYSTEM_COMPONENT_ID] =
-                    mapOf(Constants.SYSTEM_TICK_STREAM_ID to Fields())
+                mapOf(Constants.SYSTEM_TICK_STREAM_ID to Fields())
 
             val codeDir = "/tmp"
             val pidDir = "/tmp"
             val workerPort = 6699
-            val workerTasks : List<Int> = listOf()
-            val defaultResources : Map<String, Any> = LinkedHashMap()
-            val userResources : Map<String, Any> = LinkedHashMap()
-            val executorData : Map<String, Any> = LinkedHashMap()
-            val registeredMetrics : Map<Int, Map<Int, Map<String, IMetric>>> = LinkedHashMap()
+            val workerTasks: List<Int> = listOf()
+            val defaultResources: Map<String, Any> = LinkedHashMap()
+            val userResources: Map<String, Any> = LinkedHashMap()
+            val executorData: Map<String, Any> = LinkedHashMap()
+            val registeredMetrics: Map<Int, Map<Int, Map<String, IMetric>>> = LinkedHashMap()
 
             val getter: (String) -> ComponentCommon = { id ->
                 if (topology._bolts?.containsKey(id)!!) {
@@ -74,10 +74,10 @@ class KumulusStormTransformer {
 
             val componentMaps = listOf(spoutsMap, boltsMap)
 
-            val kComponents : MutableList<KumulusComponent> = mutableListOf()
+            val kComponents: MutableList<KumulusComponent> = mutableListOf()
 
-            val kComponentInputs : MutableMap<Pair<String, GlobalStreamId>, org.apache.storm.generated.Grouping> =
-                    mutableMapOf()
+            val kComponentInputs: MutableMap<Pair<String, GlobalStreamId>, org.apache.storm.generated.Grouping> =
+                mutableMapOf()
 
             var id = 1
             for (componentMap in componentMaps) {
@@ -123,64 +123,67 @@ class KumulusStormTransformer {
 
             componentToSortedTasks.forEach { componentId: String, taskIds: List<Int> ->
                 val (componentObjectSerialized, componentCommon) =
-                        when {
-                            topology._spouts!!.containsKey(componentId) ->
-                                topology._spouts[componentId]!!
-                                        .let { it._spout_object!! to it._common!! }
-                            topology._bolts!!.containsKey(componentId) ->
-                                topology._bolts[componentId]!!
-                                        .let { it._bolt_object!! to it._common!! }
-                            componentId == Constants.SYSTEM_COMPONENT_ID ->
-                                null to null
-                            else ->
-                                throw Exception(
-                                        "Component name '$componentId' was not found in underlying topology object")
-                        }
+                    when {
+                        topology._spouts!!.containsKey(componentId) ->
+                            topology._spouts[componentId]!!
+                                .let { it._spout_object!! to it._common!! }
+                        topology._bolts!!.containsKey(componentId) ->
+                            topology._bolts[componentId]!!
+                                .let { it._bolt_object!! to it._common!! }
+                        componentId == Constants.SYSTEM_COMPONENT_ID ->
+                            null to null
+                        else ->
+                            throw Exception(
+                                "Component name '$componentId' was not found in underlying topology object"
+                            )
+                    }
 
                 taskIds.forEach { taskId ->
                     val componentInstance =
-                            if (taskId == Constants.SYSTEM_TASK_ID.toInt()) {
-                                BasicBoltExecutor(object : BaseBasicBolt() {
-                                    override fun execute(input: Tuple?, collector: BasicOutputCollector?) {}
-                                    override fun declareOutputFields(declarer: OutputFieldsDeclarer?) {
-                                        // Declared hard-coded
-                                    }
-                                })
-                            } else {
-                                Utils.javaDeserialize<Serializable>(
-                                        componentObjectSerialized!!._serialized_java,
-                                        Serializable::class.java
-                                )
-                            }
+                        if (taskId == Constants.SYSTEM_TASK_ID.toInt()) {
+                            BasicBoltExecutor(object : BaseBasicBolt() {
+                                override fun execute(input: Tuple?, collector: BasicOutputCollector?) {}
+                                override fun declareOutputFields(declarer: OutputFieldsDeclarer?) {
+                                    // Declared hard-coded
+                                }
+                            })
+                        } else {
+                            Utils.javaDeserialize<Serializable>(
+                                componentObjectSerialized!!._serialized_java,
+                                Serializable::class.java
+                            )
+                        }
 
                     val context = TopologyContext(
-                            topology,
-                            config,
-                            taskToComponent,
-                            componentToSortedTasks,
-                            componentToStreamToFields,
-                            stormId,
-                            codeDir,
-                            pidDir,
-                            taskId,
-                            workerPort,
-                            workerTasks,
-                            defaultResources,
-                            userResources,
-                            executorData,
-                            registeredMetrics,
-                            Atom(Object()))
+                        topology,
+                        config,
+                        taskToComponent,
+                        componentToSortedTasks,
+                        componentToStreamToFields,
+                        stormId,
+                        codeDir,
+                        pidDir,
+                        taskId,
+                        workerPort,
+                        workerTasks,
+                        defaultResources,
+                        userResources,
+                        executorData,
+                        registeredMetrics,
+                        Atom(Object())
+                    )
 
                     kComponents += when (componentInstance) {
                         is IRichBolt -> {
                             val kumulusBolt = KumulusBolt(config, context, componentInstance, componentCommon)
                             kumulusBolt.apply {
                                 val boltConfig =
-                                        componentInstance.componentConfiguration ?: mapOf()
+                                    componentInstance.componentConfiguration ?: mapOf()
                                 boltConfig[Config.TOPOLOGY_TICK_TUPLE_FREQ_SECS]?.let { secs ->
-                                    if(secs !is Number) {
+                                    if (secs !is Number) {
                                         throw IllegalArgumentException(
-                                                "Config.TOPOLOGY_TICK_TUPLE_FREQ_SECS must be a number. Got: $secs")
+                                            "Config.TOPOLOGY_TICK_TUPLE_FREQ_SECS must be a number. Got: $secs"
+                                        )
                                     }
                                     this.tickSecs = secs
                                 }
@@ -188,8 +191,10 @@ class KumulusStormTransformer {
                         }
                         is IRichSpout -> KumulusSpout(config, context, componentInstance)
                         else ->
-                            throw Throwable("Component of type ${componentInstance::class.qualifiedName} " +
-                                    "is not acceptable by Kumulus")
+                            throw Throwable(
+                                "Component of type ${componentInstance::class.qualifiedName} " +
+                                    "is not acceptable by Kumulus"
+                            )
                     }
                 }
             }
@@ -203,24 +208,27 @@ class KumulusStormTransformer {
             components.forEach { src ->
                 (src as? KumulusBolt)?.apply {
                     inputs.forEach { gid, grouping ->
-                        val input = components.find { it.componentId == gid._componentId } ?:
-                                throw KumulusTopologyValidationException(
-                                        "Component '$componentId' is connected to non-existent component " +
-                                                "'${gid._componentId}'")
+                        val input = components.find { it.componentId == gid._componentId }
+                            ?: throw KumulusTopologyValidationException(
+                            "Component '$componentId' is connected to non-existent component " +
+                                "'${gid._componentId}'"
+                        )
 
                         when (input) {
                             is KumulusBolt -> {
                                 if (!input.streams.containsKey(gid._streamId)) {
                                     throw KumulusTopologyValidationException(
-                                            "Component '$componentId' is connected to non-existent stream " +
-                                                    "'${gid._streamId}' of component '${gid._componentId}'")
+                                        "Component '$componentId' is connected to non-existent stream " +
+                                            "'${gid._streamId}' of component '${gid._componentId}'"
+                                    )
                                 }
                                 if (grouping.is_set_fields) {
                                     val declaredFields = input.streams[gid._streamId]!!._output_fields.toSet()
                                     if (!grouping._fields.all { declaredFields.contains(it) }) {
                                         throw KumulusTopologyValidationException(
-                                                "Component '$componentId' is connected to stream '${gid._streamId}' of component " +
-                                                        "'${gid._componentId}' grouped by non existing fields ${grouping._fields}")
+                                            "Component '$componentId' is connected to stream '${gid._streamId}' of component " +
+                                                "'${gid._componentId}' grouped by non existing fields ${grouping._fields}"
+                                        )
                                     }
                                 }
                             }

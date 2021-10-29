@@ -26,15 +26,15 @@ open class TupleImpl : Tuple {
         val schema = context.getComponentOutputFields(componentId, streamId)
         if (values.size != schema.size()) {
             throw IllegalArgumentException(
-                    "Tuple created with wrong number of fields. " +
-                            "Expected " + schema.size() + " fields but got " +
-                            values.size + " fields")
+                "Tuple created with wrong number of fields. " +
+                    "Expected " + schema.size() + " fields but got " +
+                    values.size + " fields"
+            )
         }
     }
 
     constructor(context: GeneralTopologyContext, values: List<Any>, taskId: Int, streamId: String) :
-            this(context, values, taskId, streamId, MessageId.makeUnanchored(), null)
-
+        this(context, values, taskId, streamId, MessageId.makeUnanchored(), null)
 
     override fun size(): Int {
         return values.size
@@ -87,7 +87,6 @@ open class TupleImpl : Tuple {
     override fun getBinary(i: Int): ByteArray {
         return values[i] as ByteArray
     }
-
 
     override fun getValueByField(field: String): Any {
         return values[fieldIndex(field)]

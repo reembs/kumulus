@@ -11,9 +11,9 @@ import java.util.concurrent.LinkedBlockingQueue
 import java.util.concurrent.atomic.AtomicBoolean
 
 class KumulusSpout(
-        config: Map<String, Any>,
-        context: TopologyContext,
-        componentInstance: IRichSpout
+    config: Map<String, Any>,
+    context: TopologyContext,
+    componentInstance: IRichSpout
 ) : KumulusComponent(config, context) {
     companion object {
         private val logger = KotlinLogging.logger {}
@@ -41,9 +41,9 @@ class KumulusSpout(
     }
 
     private fun fail(
-            msgId: Any?,
-            timeoutComponents: List<String>,
-            failedComponents: List<String>
+        msgId: Any?,
+        timeoutComponents: List<String>,
+        failedComponents: List<String>
     ) {
         if (spout is KumulusTimeoutNotificationSpout) {
             spout.messageIdFailure(msgId, failedComponents, timeoutComponents)
