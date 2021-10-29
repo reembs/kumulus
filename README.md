@@ -1,7 +1,9 @@
 [![Build Status](https://travis-ci.org/reembs/kumulus.svg?branch=master "Build Status")](https://travis-ci.org/reembs/kumulus)
 
 # kumulus
-A drop-in replacement for Apache Storm. Aimed for a sparse processing topology with low latency requirements.
+A drop-in replacement for Apache Storm aimed for a sparse processing topology with low latency requirements.
+
+A sparse-processing topology is a topology whose processing tree is built such that a relatively small portion of the bolts are processing tuples simultaneously.
 
 What Kumulus isn't: a streaming engine, a distributed system.
 
