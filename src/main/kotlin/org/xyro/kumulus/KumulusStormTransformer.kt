@@ -3,10 +3,19 @@ package org.xyro.kumulus
 import clojure.lang.Atom
 import org.apache.storm.Config
 import org.apache.storm.Constants
-import org.apache.storm.generated.*
+import org.apache.storm.generated.Bolt
+import org.apache.storm.generated.ComponentCommon
+import org.apache.storm.generated.GlobalStreamId
+import org.apache.storm.generated.SpoutSpec
+import org.apache.storm.generated.StormTopology
 import org.apache.storm.metric.api.IMetric
 import org.apache.storm.task.TopologyContext
-import org.apache.storm.topology.*
+import org.apache.storm.topology.BasicBoltExecutor
+import org.apache.storm.topology.BasicOutputCollector
+import org.apache.storm.topology.IComponent
+import org.apache.storm.topology.IRichBolt
+import org.apache.storm.topology.IRichSpout
+import org.apache.storm.topology.OutputFieldsDeclarer
 import org.apache.storm.topology.base.BaseBasicBolt
 import org.apache.storm.tuple.Fields
 import org.apache.storm.tuple.Tuple
@@ -210,9 +219,9 @@ class KumulusStormTransformer {
                     inputs.forEach { gid, grouping ->
                         val input = components.find { it.componentId == gid._componentId }
                             ?: throw KumulusTopologyValidationException(
-                            "Component '$componentId' is connected to non-existent component " +
-                                "'${gid._componentId}'"
-                        )
+                                "Component '$componentId' is connected to non-existent component " +
+                                    "'${gid._componentId}'"
+                            )
 
                         when (input) {
                             is KumulusBolt -> {
