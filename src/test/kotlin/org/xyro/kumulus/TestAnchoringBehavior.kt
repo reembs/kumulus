@@ -27,18 +27,18 @@ class TestAnchoringBehavior {
         builder.setSpout("spout", LatencyDeltaSpout())
 
         builder.setBolt("unanchoring-bolt", UnanchoringBolt())
-                .noneGrouping("spout")
+            .noneGrouping("spout")
 
         builder.setBolt("delay-unanchored-bolt", DelayBolt())
-                .noneGrouping("unanchoring-bolt")
+            .noneGrouping("unanchoring-bolt")
 
         builder.setBolt("unanchored-bolt-2", DummyBolt())
-                .noneGrouping("spout")
-                .noneGrouping("delay-unanchored-bolt")
+            .noneGrouping("spout")
+            .noneGrouping("delay-unanchored-bolt")
 
         val stormTopology = builder.createTopology()!!
         val kumulusTopology =
-                KumulusStormTransformer.initializeTopology(stormTopology, config, "test")
+            KumulusStormTransformer.initializeTopology(stormTopology, config, "test")
 
         kumulusTopology.prepare(10, TimeUnit.SECONDS)
         kumulusTopology.start(block = false)
@@ -49,8 +49,7 @@ class TestAnchoringBehavior {
         assertTrue { calledCount.get() > 10 }
     }
 
-
-    class LatencyDeltaSpout: DummySpout({
+    class LatencyDeltaSpout : DummySpout({
         it.declare(Fields("id"))
     }) {
         private var index: Int = 0
@@ -78,7 +77,7 @@ class TestAnchoringBehavior {
         }
     }
 
-    class UnanchoringBolt: IRichBolt {
+    class UnanchoringBolt : IRichBolt {
         private lateinit var collector: OutputCollector
 
         override fun execute(input: Tuple) {
@@ -101,7 +100,7 @@ class TestAnchoringBehavior {
         }
     }
 
-    class DelayBolt: DummyBolt({
+    class DelayBolt : DummyBolt({
         it.declare(Fields("id"))
     }) {
         override fun execute(input: Tuple, collector: BasicOutputCollector) {

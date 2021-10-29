@@ -41,13 +41,13 @@ class TestTimeoutSpoutHook {
 
         builder.setSpout("spout", TestSpout())
         builder.setBolt("timeout-bolt", TestBolt(true))
-                .noneGrouping("spout")
+            .noneGrouping("spout")
         builder.setBolt("acking-bolt", TestBolt(false))
-                .noneGrouping("spout")
+            .noneGrouping("spout")
 
         val stormTopology = builder.createTopology()!!
         val kumulusTopology =
-                KumulusStormTransformer.initializeTopology(stormTopology, config, "test")
+            KumulusStormTransformer.initializeTopology(stormTopology, config, "test")
         kumulusTopology.prepare(10, TimeUnit.SECONDS)
         kumulusTopology.start(block = false)
         done.await()
@@ -72,13 +72,13 @@ class TestTimeoutSpoutHook {
 
         builder.setSpout("spout", TestSpout())
         builder.setBolt("fail-bolt", TestFailingBolt())
-                .noneGrouping("spout")
+            .noneGrouping("spout")
         builder.setBolt("acking-bolt", TestBolt(false))
-                .noneGrouping("spout")
+            .noneGrouping("spout")
 
         val stormTopology = builder.createTopology()!!
         val kumulusTopology =
-                KumulusStormTransformer.initializeTopology(stormTopology, config, "test")
+            KumulusStormTransformer.initializeTopology(stormTopology, config, "test")
         kumulusTopology.prepare(10, TimeUnit.SECONDS)
         kumulusTopology.start(block = false)
         done.await()
@@ -92,7 +92,7 @@ class TestTimeoutSpoutHook {
         assertTrue { missingBolts.get().isEmpty() }
     }
 
-    class TestSpout: DummySpout({ it.declare(Fields("id")) }), KumulusTimeoutNotificationSpout {
+    class TestSpout : DummySpout({ it.declare(Fields("id")) }), KumulusTimeoutNotificationSpout {
         private var index: Int = 0
 
         override fun open(conf: MutableMap<Any?, Any?>?, context: TopologyContext?, collector: SpoutOutputCollector?) {
@@ -120,7 +120,7 @@ class TestTimeoutSpoutHook {
         }
     }
 
-    class TestBolt(private  val shouldTimeout: Boolean): IRichBolt {
+    class TestBolt(private val shouldTimeout: Boolean) : IRichBolt {
         private lateinit var collector: OutputCollector
 
         override fun execute(input: Tuple) {

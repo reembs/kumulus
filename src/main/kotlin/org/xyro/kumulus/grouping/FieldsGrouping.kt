@@ -6,8 +6,8 @@ import org.apache.storm.task.WorkerTopologyContext
 import kotlin.math.absoluteValue
 
 class FieldsGrouping(
-        private val groupingFields: List<String>,
-        private val outputFields: List<String>
+    private val groupingFields: List<String>,
+    private val outputFields: List<String>
 ) : CustomStreamGrouping {
     private lateinit var tasks: List<Int>
 

@@ -8,7 +8,6 @@ import org.apache.storm.topology.OutputFieldsDeclarer
 import org.apache.storm.tuple.Fields
 import org.apache.storm.tuple.Tuple
 import org.junit.Test
-import org.xyro.kumulus.KumulusTopology
 import java.util.concurrent.TimeUnit
 
 class TestExecuteException {
@@ -23,11 +22,11 @@ class TestExecuteException {
 
         builder.setSpout("spout", TestSpout())
         builder.setBolt("execute-exception-bolt", TestExecuteExceptionBolt())
-                .noneGrouping("spout")
+            .noneGrouping("spout")
 
         val stormTopology = builder.createTopology()!!
         val kumulusTopology =
-                KumulusStormTransformer.initializeTopology(stormTopology, config, "test")
+            KumulusStormTransformer.initializeTopology(stormTopology, config, "test")
         kumulusTopology.prepare(2, TimeUnit.SECONDS)
         kumulusTopology.start(true)
     }
@@ -45,18 +44,18 @@ class TestExecuteException {
 
         val stormTopology = builder.createTopology()!!
         val kumulusTopology =
-                KumulusStormTransformer.initializeTopology(stormTopology, config, "test")
+            KumulusStormTransformer.initializeTopology(stormTopology, config, "test")
         kumulusTopology.prepare(2, TimeUnit.SECONDS)
         kumulusTopology.start(true)
     }
 
-    class TestSpout: DummySpout({ it.declare(Fields()) }) {
+    class TestSpout : DummySpout({ it.declare(Fields()) }) {
         override fun nextTuple() {
             collector.emit(listOf(), Object())
         }
     }
 
-    class TesExceptiontSpout: DummySpout({ it.declare(Fields()) }) {
+    class TesExceptiontSpout : DummySpout({ it.declare(Fields()) }) {
         override fun nextTuple() {
             throw RuntimeException("This exception should be thrown")
         }

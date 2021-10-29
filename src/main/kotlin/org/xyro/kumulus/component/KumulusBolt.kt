@@ -11,10 +11,10 @@ import org.xyro.kumulus.KumulusTuple
 import org.xyro.kumulus.collector.KumulusBoltCollector
 
 class KumulusBolt(
-        config: Map<String, Any>,
-        context: TopologyContext,
-        componentInstance: IRichBolt,
-        common: ComponentCommon?
+    config: Map<String, Any>,
+    context: TopologyContext,
+    componentInstance: IRichBolt,
+    common: ComponentCommon?
 ) : KumulusComponent(config, context) {
     companion object {
         private val logger = KotlinLogging.logger {}
@@ -25,7 +25,7 @@ class KumulusBolt(
 
     var tickSecs: Number? = null
 
-    private val bolt : IRichBolt = componentInstance
+    private val bolt: IRichBolt = componentInstance
 
     fun prepare(collector: KumulusBoltCollector) {
         logger.info { "Created bolt '$componentId' with taskId $taskId (index: ${context.thisTaskIndex}). Object hashcode: ${this.hashCode()}" }

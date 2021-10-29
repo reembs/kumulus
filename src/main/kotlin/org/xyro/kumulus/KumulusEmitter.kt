@@ -7,11 +7,11 @@ interface KumulusEmitter {
     fun getDestinations(tasks: List<Int>): List<KumulusComponent>
     fun execute(destComponent: KumulusComponent, kumulusTuple: KumulusTuple)
     fun completeMessageProcessing(
-            spout: KumulusSpout,
-            spoutMessageId: Any?,
-            timeoutTasks: List<Int>,
-            failedTasks: List<Int>,
-            callback: () -> Unit
+        spout: KumulusSpout,
+        spoutMessageId: Any?,
+        timeoutTasks: List<Int>,
+        failedTasks: List<Int>,
+        callback: () -> Unit
     )
     fun throwException(t: Throwable)
 }

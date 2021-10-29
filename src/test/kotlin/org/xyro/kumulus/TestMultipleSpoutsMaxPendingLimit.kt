@@ -31,13 +31,13 @@ class TestMultipleSpoutsMaxPendingLimit {
         builder.setSpout("spout3", TestSpout())
 
         builder.setBolt("acking-bolt", TestBolt())
-                .allGrouping("spout")
-                .allGrouping("spout2")
-                .allGrouping("spout3")
+            .allGrouping("spout")
+            .allGrouping("spout2")
+            .allGrouping("spout3")
 
         val stormTopology = builder.createTopology()!!
         val kumulusTopology =
-                KumulusStormTransformer.initializeTopology(stormTopology, config, "test")
+            KumulusStormTransformer.initializeTopology(stormTopology, config, "test")
         kumulusTopology.prepare(10, TimeUnit.SECONDS)
         kumulusTopology.start()
         Thread.sleep(5000)
@@ -62,11 +62,11 @@ class TestMultipleSpoutsMaxPendingLimit {
         builder.setSpout("spout", TestSpout())
 
         builder.setBolt("sleeping-bolt", SleepingBolt(), 4)
-                .shuffleGrouping("spout")
+            .shuffleGrouping("spout")
 
         val stormTopology = builder.createTopology()!!
         val kumulusTopology =
-                KumulusStormTransformer.initializeTopology(stormTopology, config, "test")
+            KumulusStormTransformer.initializeTopology(stormTopology, config, "test")
         kumulusTopology.prepare(10, TimeUnit.SECONDS)
         kumulusTopology.start()
 
@@ -80,7 +80,7 @@ class TestMultipleSpoutsMaxPendingLimit {
         logger.info { "Executed ${executions.get()} times, no errors" }
     }
 
-    class TestSpout: DummySpout({ it.declare(Fields("id")) }) {
+    class TestSpout : DummySpout({ it.declare(Fields("id")) }) {
         private var count = 0
 
         override fun fail(msgId: Any?) {
@@ -107,7 +107,7 @@ class TestMultipleSpoutsMaxPendingLimit {
         }
     }
 
-    class TestBolt: IRichBolt {
+    class TestBolt : IRichBolt {
         private lateinit var collector: OutputCollector
 
         override fun execute(input: Tuple) {

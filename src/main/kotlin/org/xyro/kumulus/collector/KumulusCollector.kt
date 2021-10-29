@@ -11,11 +11,11 @@ import org.xyro.kumulus.component.KumulusComponent
 import org.xyro.kumulus.component.KumulusSpout
 import org.xyro.kumulus.component.TupleImpl
 
-abstract class KumulusCollector<T: KumulusComponent>(
-        protected val component: KumulusComponent,
-        private val emitter: KumulusEmitter,
-        protected val acker: KumulusAcker,
-        private val errorHandler: ((String, Int, Throwable) -> Unit)? = null
+abstract class KumulusCollector<T : KumulusComponent>(
+    protected val component: KumulusComponent,
+    private val emitter: KumulusEmitter,
+    protected val acker: KumulusAcker,
+    private val errorHandler: ((String, Int, Throwable) -> Unit)? = null
 ) {
     companion object {
         private val logger = KotlinLogging.logger {}
@@ -23,19 +23,22 @@ abstract class KumulusCollector<T: KumulusComponent>(
 
     // Impl. org.apache.storm.task.IOutputCollector
     fun reportError(error: Throwable?) {
-        val reportError = error ?:
-                Exception("reportError was called with null error. An error in component might be shadowed")
+        val reportError = error
+            ?: Exception("reportError was called with null error. An error in component might be shadowed")
         errorHandler?.let {
             it(this.component.componentId, this.component.taskId, reportError)
-        } ?: logger.error("An error was reported from bolt " +
-                "${component.componentId}/${component.taskId}", reportError)
+        } ?: logger.error(
+            "An error was reported from bolt " +
+                "${component.componentId}/${component.taskId}",
+            reportError
+        )
     }
 
     private fun componentEmit(
-            streamId: String?,
-            tuple: MutableList<Any>,
-            messageId: Any?
-    ) : MutableList<Int> {
+        streamId: String?,
+        tuple: MutableList<Any>,
+        messageId: Any?
+    ): MutableList<Int> {
         val ret = mutableListOf<Int>()
 
         var executes: List<Pair<KumulusComponent, KumulusTuple>> = listOf()
@@ -44,7 +47,7 @@ abstract class KumulusCollector<T: KumulusComponent>(
             streamTargets.forEach { _, grouping ->
                 val tasks = grouping.chooseTasks(this.component.taskId, tuple)
 
-                val emitToInstance= emitter.getDestinations(tasks)
+                val emitToInstance = emitter.getDestinations(tasks)
 
                 // First, expand all trees
                 executes += emitToInstance.map { destComponent ->
@@ -70,20 +73,20 @@ abstract class KumulusCollector<T: KumulusComponent>(
 
     fun emit(streamId: String?, anchors: MutableCollection<Tuple>?, tuple: MutableList<Any>): MutableList<Int> {
         val messageId = anchors
-                ?.map { (it as TupleImpl).spoutMessageId }
-                ?.toSet()
-                ?.filter { it != null }
-                ?.apply {
-                    if(this.size > 1) {
-                        logger.debug { "Found more than a single message ID in emitted anchors: $anchors" }
-                    }
+            ?.map { (it as TupleImpl).spoutMessageId }
+            ?.toSet()
+            ?.filter { it != null }
+            ?.apply {
+                if (this.size > 1) {
+                    logger.debug { "Found more than a single message ID in emitted anchors: $anchors" }
                 }
-                ?.firstOrNull()
+            }
+            ?.firstOrNull()
         return componentEmit(streamId, tuple, messageId)
     }
 
     fun emit(streamId: String?, tuple: MutableList<Any>, messageId: Any?): MutableList<Int> {
-        if(component !is KumulusSpout) {
+        if (component !is KumulusSpout) {
             throw RuntimeException("Bolts wrong emit method called for ${component.componentId}/${component.taskId}")
         }
         acker.startTree(component, messageId)
