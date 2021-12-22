@@ -1,6 +1,8 @@
 language: java
 jdk: openjdk14
 sudo: false
+env:
+  - TEST_ITERATIONS=100
 install:
   - mvn install -DskipTests=true -Dmaven.javadoc.skip=true -B -V -Dgpg.skip=true
 script:

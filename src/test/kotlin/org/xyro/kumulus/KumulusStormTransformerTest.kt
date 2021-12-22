@@ -132,14 +132,13 @@ class KumulusStormTransformerTest {
 
             kumulusTopology.onBusyBoltHook = { comp, _, busyNanos, _ ->
                 busyTimeMap.compute(
-                    comp,
-                    { _, v ->
-                        when (v) {
-                            null -> busyNanos
-                            else -> busyNanos + v
-                        }
+                    comp
+                ) { _, v ->
+                    when (v) {
+                        null -> busyNanos
+                        else -> busyNanos + v
                     }
-                )
+                }
             }
 
             kumulusTopology.prepare(10, TimeUnit.SECONDS)
