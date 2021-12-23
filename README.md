@@ -1,4 +1,4 @@
-[![Build Status](https://travis-ci.org/reembs/kumulus.svg?branch=master "Build Status")](https://travis-ci.org/reembs/kumulus)
+[![Build Status](https://travis-ci.com/reembs/kumulus.svg?branch=master "Build Status")](https://app.travis-ci.com/github/reembs/kumulus)
 
 # kumulus
 A drop-in replacement for Apache Storm aimed for a sparse processing topology with low latency requirements.
