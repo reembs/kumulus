@@ -102,7 +102,6 @@ class KumulusSpout(
             } else {
                 fail(ackMessage.spoutMessageId, ackMessage.timeoutComponents, ackMessage.failedComponents)
             }
-            ackMessage.callback()
         }.let {
             if (it == null && isReady.get()) {
                 if (acker.waitForSpoutAvailability()) {
