@@ -62,10 +62,21 @@ class TestAllowExtraAckingMode {
             collector.emit(listOf(messageId), messageId)
             val currentPending = inFlight.incrementAndGet()
             if (currentPending > MAX_SPOUT_PENDING) {
-                throw Exception(
-                    "Current in-flight tuples ($currentPending) exceeded the " +
-                        "max-spout-pending configuration ($MAX_SPOUT_PENDING)."
-                )
+                logger.trace {
+                    /*
+                     * Kumulus does not guarantee max-spout-pending concurrency between ack/fail and nextTuple. That
+                     * means that while it is not possible to breach max-spout-pending before all bolts in the
+                     * tuple-tree had responded, the following scenario is possible:
+                     *
+                     * 1. All bolts responded
+                     * 2. nextTuple() is called before ack/fail, seemingly breaching the guarantee from the spout's
+                     *    perspective
+                     * 3. ack/fail is called
+                     *
+                     * Note that this can cause currentPending to drift from max-spout-pending by much more than 1
+                     */
+                    "Current in-flight tuples ($currentPending) exceeded the max-spout-pending configuration ($MAX_SPOUT_PENDING)."
+                }
             }
         }
     }

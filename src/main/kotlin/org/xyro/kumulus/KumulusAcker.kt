@@ -37,7 +37,7 @@ class KumulusAcker(
     fun startTree(component: KumulusSpout, messageId: Any?) {
         logger.debug { "startTree() -> component: $component, messageId: $messageId" }
         if (messageId == null) {
-            notifySpout(component, messageId, listOf()) {}
+            notifySpout(component, messageId, listOf())
         } else {
             MessageState(component).let { messageState ->
                 synchronized(completeLock) {
@@ -72,9 +72,8 @@ class KumulusAcker(
                                         messageId,
                                         removedState.pendingTasks.map { it.key },
                                         removedState.failedTasks.toList()
-                                    ) {
-                                        decrementPending()
-                                    }
+                                    )
+                                    decrementPending()
                                 }
                             }
                         },
@@ -165,9 +164,8 @@ class KumulusAcker(
                     }
                     val removedState = state.remove(spoutMessageId)
                     if (removedState != null) {
-                        notifySpout(messageState.spout, spoutMessageId, messageState.failedTasks.toList()) {
-                            decrementPending()
-                        }
+                        notifySpout(messageState.spout, spoutMessageId, messageState.failedTasks.toList())
+                        decrementPending()
                     } else {
                         logger.debug { "Race while closing tuple-tree, ignoring duplicate" }
                     }
@@ -193,18 +191,17 @@ class KumulusAcker(
         }
     }
 
-    private fun notifySpout(spout: KumulusSpout, spoutMessageId: Any?, failedTasks: List<Int>, callback: () -> Unit) {
-        this.notifySpout(spout, spoutMessageId, listOf(), failedTasks, callback)
+    private fun notifySpout(spout: KumulusSpout, spoutMessageId: Any?, failedTasks: List<Int>) {
+        this.notifySpout(spout, spoutMessageId, listOf(), failedTasks)
     }
 
     private fun notifySpout(
         spout: KumulusSpout,
         spoutMessageId: Any?,
         timeoutTasks: List<Int>,
-        failedTasks: List<Int>,
-        callback: () -> Unit
+        failedTasks: List<Int>
     ) {
-        emitter.completeMessageProcessing(spout, spoutMessageId, timeoutTasks, failedTasks, callback)
+        emitter.completeMessageProcessing(spout, spoutMessageId, timeoutTasks, failedTasks)
     }
 
     private fun decrementPending() {
