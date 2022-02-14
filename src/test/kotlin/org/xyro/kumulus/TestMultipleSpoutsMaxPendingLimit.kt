@@ -81,12 +81,13 @@ class TestMultipleSpoutsMaxPendingLimit {
     }
 
     class TestSpout : DummySpout({ it.declare(Fields("id")) }) {
-        private var count = 0
-
-        override fun fail(msgId: Any?) {
-        }
+        override fun fail(msgId: Any?) {}
 
         override fun ack(msgId: Any?) {
+            // Emitting from the spout's ack method is supported behavior in Storm. The following emit() was added to
+            // the test to verify this behavior in the multi-spout scenario
+            val messageId = UUID.randomUUID().toString()
+            collector.emit(listOf(messageId), messageId)
         }
 
         override fun nextTuple() {
