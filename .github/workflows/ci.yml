@@ -9,10 +9,6 @@ on:
 jobs:
   buildAndTest:
     runs-on: ubuntu-latest
-
-    env:
-      TEST_ITERATIONS: 100
-
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -24,4 +20,6 @@ jobs:
           distribution: 'temurin'
 
       - name: Test
+        env:
+          TEST_ITERATIONS: 100
         run: mvn test
