@@ -15,6 +15,7 @@ import org.xyro.kumulus.component.KumulusMessage
 import org.xyro.kumulus.component.KumulusSpout
 import org.xyro.kumulus.component.PrepareMessage
 import org.xyro.kumulus.component.SpoutPrepareMessage
+import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.RejectedExecutionHandler
 import java.util.concurrent.ScheduledThreadPoolExecutor
@@ -43,6 +44,13 @@ class KumulusTopology(
         .toMap()
     private val atomicThreadsInUse = AtomicInteger(0)
     private val atomicMaxThreadsInUse = AtomicInteger(0)
+    private val atomicNumberOfMessageThatShouldBeDropped = AtomicInteger(0)
+
+    @Suppress("UNCHECKED_CAST")
+    private val lateMessagesStreamsToDrop: Set<String> = config[CONF_LATE_MESSAGES_DROPPING_STREAMS_NAME] as? Set<String> ?: emptySet()
+    private val lateMessagesShouldDrop: Boolean = config[CONF_LATE_MESSAGES_DROPPING_SHOULD_DROP] as? Boolean ?: false
+    private val lateMessageMaxWaitInNanos: Long = (config[CONF_LATE_MESSAGES_DROPPING_MAX_WAIT_SECONDS] as? Long ?: 10) * 1_000_000_000L
+    private val droppedMessages: MutableSet<String> = ConcurrentHashMap.newKeySet()
 
     private val scheduledExecutorPoolSize: Int =
         (config[CONF_SCHEDULED_EXECUTOR_THREAD_POOL_SIZE] as? Long ?: 5L).toInt()
@@ -66,6 +74,14 @@ class KumulusTopology(
     @Suppress("MemberVisibilityCanBePrivate")
     val maxThreadsInUse: Int
         get() = atomicMaxThreadsInUse.get()
+
+    @Suppress("MemberVisibilityCanBePrivate")
+    val numOfMessagesToDrop: Int
+        get() = atomicNumberOfMessageThatShouldBeDropped.get()
+
+    @Suppress("MemberVisibilityCanBePrivate")
+    val droppedMessagesBoltsAndTaskIds: Set<String>
+        get() = droppedMessages.toMutableSet()
 
     @Suppress("MemberVisibilityCanBePrivate")
     val maxQueueSize: Int
@@ -92,6 +108,9 @@ class KumulusTopology(
         const val CONF_BOLT_QUEUE_PUSHBACK_WAIT = "kumulus.bolt.pushback.wait"
         const val CONF_SHUTDOWN_TIMEOUT_SECS = "kumulus.shutdown.timeout.secs"
         const val CONF_SCHEDULED_EXECUTOR_THREAD_POOL_SIZE = "kumulus.executor.scheduled-executor.pool-size"
+        const val CONF_LATE_MESSAGES_DROPPING_STREAMS_NAME = "kumulus.late-messages-dropping.streams-name"
+        const val CONF_LATE_MESSAGES_DROPPING_SHOULD_DROP = "kumulus.late-messages-dropping.should-drop"
+        const val CONF_LATE_MESSAGES_DROPPING_MAX_WAIT_SECONDS = "kumulus.late-messages-dropping.max-wait-seconds"
 
         @Suppress("unused")
         @Deprecated("Use CONF_READY_POLL_SLEEP instead")
@@ -290,19 +309,41 @@ class KumulusTopology(
             }
         } else {
             logger.trace { "Component ${c.componentId}/${c.taskId} is currently busy" }
-            if (onBusyBoltHook != null && message is ExecuteMessage) {
+            var shouldEnqueue = true
+            if (message is ExecuteMessage) {
+                val messageWaitStartTime =  c.waitStart.get()
+
+                if (messageWaitStartTime > 0){
+                    if ((System.nanoTime() - messageWaitStartTime >= lateMessageMaxWaitInNanos) &&
+                        lateMessagesStreamsToDrop.contains(message.tuple.kTuple.sourceStreamId)) {
+                        if (!message.isLate.get()){
+                            atomicNumberOfMessageThatShouldBeDropped.incrementAndGet()
+                            droppedMessages.add(message.component.componentId)
+                            message.isLate.set(true)
+                        }
+
+                        if (lateMessagesShouldDrop){
+                            shouldEnqueue = false
+                        }
+                    }
+                }
+
                 c.waitStart.compareAndSet(0, System.nanoTime())
             }
-            if (queuePushbackWait <= 0L) {
-                boltExecutionPool.enqueue(message)
-            } else {
-                scheduledExecutor.schedule(
-                    {
-                        boltExecutionPool.enqueue(message)
-                    },
-                    queuePushbackWait, TimeUnit.MILLISECONDS
-                )
+
+            if (shouldEnqueue){
+                if (queuePushbackWait <= 0L) {
+                    boltExecutionPool.enqueue(message)
+                } else {
+                    scheduledExecutor.schedule(
+                        {
+                            boltExecutionPool.enqueue(message)
+                        },
+                        queuePushbackWait, TimeUnit.MILLISECONDS
+                    )
+                }
             }
+
         }
     }
 
@@ -310,6 +351,8 @@ class KumulusTopology(
     fun resetMetrics() {
         this.atomicMaxThreadsInUse.set(0)
         this.boltExecutionPool.maxSize.set(0)
+        this.atomicNumberOfMessageThatShouldBeDropped.set(0)
+        this.droppedMessages.clear()
     }
 
     private fun stopInternal() {
