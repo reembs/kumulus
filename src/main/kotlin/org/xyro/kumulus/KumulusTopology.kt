@@ -73,7 +73,7 @@ class KumulusTopology(
     @Suppress("MemberVisibilityCanBePrivate")
     val maxThreadsInUse: Int
         get() = atomicMaxThreadsInUse.get()
-    
+
     @Suppress("MemberVisibilityCanBePrivate")
     val maxQueueSize: Int
         get() = boltExecutionPool.maxSize.get()
@@ -302,7 +302,6 @@ class KumulusTopology(
             logger.trace { "Component ${c.componentId}/${c.taskId} is currently busy" }
             var shouldEnqueue = true
             if (message is ExecuteMessage) {
-
                 val messageWaitStartTime =  c.waitStart.get()
                 if (messageWaitStartTime > 0){
                     val delay = System.nanoTime() - messageWaitStartTime
@@ -327,7 +326,7 @@ class KumulusTopology(
                                     logger.error("An exception was thrown by busy-hook thread-pool submission, ignoring", e)
                                 }
                             }
-
+                            
                             message.isLate.set(true)
                         }
 
@@ -352,7 +351,6 @@ class KumulusTopology(
                     )
                 }
             }
-
         }
     }
 
