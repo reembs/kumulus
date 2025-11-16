@@ -73,8 +73,7 @@ class KumulusTopology(
     @Suppress("MemberVisibilityCanBePrivate")
     val maxThreadsInUse: Int
         get() = atomicMaxThreadsInUse.get()
-
-
+    
     @Suppress("MemberVisibilityCanBePrivate")
     val maxQueueSize: Int
         get() = boltExecutionPool.maxSize.get()

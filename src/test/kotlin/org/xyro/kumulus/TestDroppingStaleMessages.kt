@@ -22,7 +22,6 @@ class TestDroppingStaleMessages {
         val config: MutableMap<String, Any> = mutableMapOf()
         config[Config.TOPOLOGY_MAX_SPOUT_PENDING] = 1L
         config[KumulusTopology.CONF_THREAD_POOL_CORE_SIZE] = 5L
-//        config[KumulusTopology.CONF_SCHEDULED_EXECUTOR_THREAD_POOL_SIZE] = 5;
         config[KumulusTopology.CONF_LATE_MESSAGES_DROPPING_SHOULD_DROP] = true;
         config[KumulusTopology.CONF_LATE_MESSAGES_DROPPING_STREAMS_NAME] = setOf("default");
         config[KumulusTopology.CONF_LATE_MESSAGES_DROPPING_MAX_WAIT_SECONDS] = 1;
