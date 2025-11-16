@@ -15,6 +15,7 @@ import org.xyro.kumulus.component.KumulusMessage
 import org.xyro.kumulus.component.KumulusSpout
 import org.xyro.kumulus.component.PrepareMessage
 import org.xyro.kumulus.component.SpoutPrepareMessage
+import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.RejectedExecutionHandler
 import java.util.concurrent.ScheduledThreadPoolExecutor
@@ -43,12 +44,13 @@ class KumulusTopology(
         .toMap()
     private val atomicThreadsInUse = AtomicInteger(0)
     private val atomicMaxThreadsInUse = AtomicInteger(0)
+    private val atomicNumberOfMessageThatShouldBeDropped = AtomicInteger(0)
 
     @Suppress("UNCHECKED_CAST")
     private val lateMessagesStreamsToDrop: Set<String> = config[CONF_LATE_MESSAGES_DROPPING_STREAMS_NAME] as? Set<String> ?: emptySet()
     private val lateMessagesShouldDrop: Boolean = config[CONF_LATE_MESSAGES_DROPPING_SHOULD_DROP] as? Boolean ?: false
-    private val lateMessageMaxWaitInNanos: Long = (config[CONF_LATE_MESSAGES_DROPPING_MAX_WAIT_SECONDS] as? Int ?: 10) * 1_000_000_000L
-
+    private val lateMessageMaxWaitInNanos: Long = (config[CONF_LATE_MESSAGES_DROPPING_MAX_WAIT_SECONDS] as? Long ?: 10) * 1_000_000_000L
+    private val droppedMessages: MutableSet<String> = ConcurrentHashMap.newKeySet()
 
     private val scheduledExecutorPoolSize: Int =
         (config[CONF_SCHEDULED_EXECUTOR_THREAD_POOL_SIZE] as? Long ?: 5L).toInt()
@@ -64,7 +66,6 @@ class KumulusTopology(
     var onBusyBoltHook: ((String, Int, Long, Tuple) -> Unit)? = null
     var onBoltPrepareFinishHook: ((String, Int, Long) -> Unit)? = null
     var onReportErrorHook: ((String, Int, Throwable) -> Unit)? = null
-    var onLateMessageHook: ((String, Int, Long, Tuple) -> Unit)? = null
 
     @Suppress("MemberVisibilityCanBePrivate", "unused")
     val currentThreadsInUse: Int
@@ -74,6 +75,13 @@ class KumulusTopology(
     val maxThreadsInUse: Int
         get() = atomicMaxThreadsInUse.get()
 
+    @Suppress("MemberVisibilityCanBePrivate")
+    val numOfMessagesToDrop: Int
+        get() = atomicNumberOfMessageThatShouldBeDropped.get()
+
+    @Suppress("MemberVisibilityCanBePrivate")
+    val droppedMessagesBoltsAndTaskIds: Set<String>
+        get() = droppedMessages.toMutableSet()
 
     @Suppress("MemberVisibilityCanBePrivate")
     val maxQueueSize: Int
@@ -303,32 +311,14 @@ class KumulusTopology(
             logger.trace { "Component ${c.componentId}/${c.taskId} is currently busy" }
             var shouldEnqueue = true
             if (message is ExecuteMessage) {
-
                 val messageWaitStartTime =  c.waitStart.get()
+
                 if (messageWaitStartTime > 0){
-                    val delay = System.nanoTime() - messageWaitStartTime
-                    if ((delay >= lateMessageMaxWaitInNanos) &&
+                    if ((System.nanoTime() - messageWaitStartTime >= lateMessageMaxWaitInNanos) &&
                         lateMessagesStreamsToDrop.contains(message.tuple.kTuple.sourceStreamId)) {
                         if (!message.isLate.get()){
-                            onLateMessageHook?.let { onLateMessageHook ->
-                                try {
-                                    scheduledExecutor.submit {
-                                        try {
-                                            onLateMessageHook(
-                                                message.component.componentId,
-                                                message.component.taskId,
-                                                delay,
-                                                message.tuple.kTuple
-                                            )
-                                        } catch (e: Exception) {
-                                            logger.error("An exception was thrown from busy-hook callback, ignoring", e)
-                                        }
-                                    }
-                                } catch (e: Exception) {
-                                    logger.error("An exception was thrown by busy-hook thread-pool submission, ignoring", e)
-                                }
-                            }
-
+                            atomicNumberOfMessageThatShouldBeDropped.incrementAndGet()
+                            droppedMessages.add(message.component.componentId)
                             message.isLate.set(true)
                         }
 
@@ -361,6 +351,8 @@ class KumulusTopology(
     fun resetMetrics() {
         this.atomicMaxThreadsInUse.set(0)
         this.boltExecutionPool.maxSize.set(0)
+        this.atomicNumberOfMessageThatShouldBeDropped.set(0)
+        this.droppedMessages.clear()
     }
 
     private fun stopInternal() {
