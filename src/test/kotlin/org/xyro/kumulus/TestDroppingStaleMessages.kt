@@ -17,11 +17,12 @@ import kotlin.test.assertTrue
 
 class TestDroppingStaleMessages {
     @Test
-    fun testLatentUnanchoredBolt() {
+    fun testLateBolt() {
         val builder = org.apache.storm.topology.TopologyBuilder()
         val config: MutableMap<String, Any> = mutableMapOf()
         config[Config.TOPOLOGY_MAX_SPOUT_PENDING] = 1L
         config[KumulusTopology.CONF_THREAD_POOL_CORE_SIZE] = 5L
+//        config[KumulusTopology.CONF_SCHEDULED_EXECUTOR_THREAD_POOL_SIZE] = 5;
         config[KumulusTopology.CONF_LATE_MESSAGES_DROPPING_SHOULD_DROP] = true;
         config[KumulusTopology.CONF_LATE_MESSAGES_DROPPING_STREAMS_NAME] = setOf("default");
         config[KumulusTopology.CONF_LATE_MESSAGES_DROPPING_MAX_WAIT_SECONDS] = 1;
@@ -39,14 +40,19 @@ class TestDroppingStaleMessages {
         val kumulusTopology =
             KumulusStormTransformer.initializeTopology(stormTopology, config, "test")
 
+        var lateHookCalled = false
+
+        kumulusTopology.onLateMessageHook = { _, _, _, _ ->
+            lateHookCalled = true
+        }
+
         kumulusTopology.prepare(10, TimeUnit.SECONDS)
         kumulusTopology.start(block = false)
         Thread.sleep(5000)
         kumulusTopology.stop()
 
-        val dropped = kumulusTopology.numOfMessagesToDrop
-        logger.info { "Dropped ${dropped} messages" }
-        assertTrue { dropped > 0}
+        logger.info { "Dropped ${lateHookCalled} messages" }
+        assertTrue { lateHookCalled}
     }
 
     class LatencyDeltaSpout : DummySpout({
