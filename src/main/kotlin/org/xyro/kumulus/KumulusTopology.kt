@@ -44,6 +44,11 @@ class KumulusTopology(
     private val atomicThreadsInUse = AtomicInteger(0)
     private val atomicMaxThreadsInUse = AtomicInteger(0)
 
+    @Suppress("UNCHECKED_CAST")
+    private val lateMessagesStreamsToDrop: Set<String> = config[CONF_LATE_MESSAGES_DROPPING_STREAMS_NAME] as Set<String>? ?: emptySet()
+    private val lateMessagesShouldDrop: Boolean = config[CONF_LATE_MESSAGES_DROPPING_SHOULD_DROP] as Boolean? ?: false
+    private val lateMessageMaxWaitInNanos: Long = (config[CONF_LATE_MESSAGES_DROPPING_MAX_WAIT_SECONDS] as Long? ?: 10) * 1_000_000_000L
+
     private val scheduledExecutorPoolSize: Int =
         (config[CONF_SCHEDULED_EXECUTOR_THREAD_POOL_SIZE] as? Long ?: 5L).toInt()
     private val rejectedExecutionHandler = RejectedExecutionHandler { _, _ ->
@@ -58,6 +63,7 @@ class KumulusTopology(
     var onBusyBoltHook: ((String, Int, Long, Tuple) -> Unit)? = null
     var onBoltPrepareFinishHook: ((String, Int, Long) -> Unit)? = null
     var onReportErrorHook: ((String, Int, Throwable) -> Unit)? = null
+    var onLateMessageHook: ((String, Int, Long, Tuple) -> Unit)? = null
 
     @Suppress("MemberVisibilityCanBePrivate", "unused")
     val currentThreadsInUse: Int
@@ -92,6 +98,9 @@ class KumulusTopology(
         const val CONF_BOLT_QUEUE_PUSHBACK_WAIT = "kumulus.bolt.pushback.wait"
         const val CONF_SHUTDOWN_TIMEOUT_SECS = "kumulus.shutdown.timeout.secs"
         const val CONF_SCHEDULED_EXECUTOR_THREAD_POOL_SIZE = "kumulus.executor.scheduled-executor.pool-size"
+        const val CONF_LATE_MESSAGES_DROPPING_STREAMS_NAME = "kumulus.late-messages-dropping.streams-name"
+        const val CONF_LATE_MESSAGES_DROPPING_SHOULD_DROP = "kumulus.late-messages-dropping.should-drop"
+        const val CONF_LATE_MESSAGES_DROPPING_MAX_WAIT_SECONDS = "kumulus.late-messages-dropping.max-wait-seconds"
 
         @Suppress("unused")
         @Deprecated("Use CONF_READY_POLL_SLEEP instead")
@@ -290,18 +299,56 @@ class KumulusTopology(
             }
         } else {
             logger.trace { "Component ${c.componentId}/${c.taskId} is currently busy" }
-            if (onBusyBoltHook != null && message is ExecuteMessage) {
+            var shouldEnqueue = true
+            if (message is ExecuteMessage) {
+                val messageWaitStartTime = c.waitStart.get()
+                if (messageWaitStartTime > 0) {
+                    val delay = System.nanoTime() - messageWaitStartTime
+                    if ((delay >= lateMessageMaxWaitInNanos) &&
+                        lateMessagesStreamsToDrop.contains(message.tuple.kTuple.sourceStreamId)
+                    ) {
+                        if (!message.isLate.get()) {
+                            message.isLate.set(true)
+                            onLateMessageHook?.let { onLateMessageHook ->
+                                try {
+                                    scheduledExecutor.submit {
+                                        try {
+                                            onLateMessageHook(
+                                                message.component.componentId,
+                                                message.component.taskId,
+                                                delay,
+                                                message.tuple.kTuple
+                                            )
+                                        } catch (e: Exception) {
+                                            logger.error("An exception was thrown from busy-hook callback, ignoring", e)
+                                        }
+                                    }
+                                } catch (e: Exception) {
+                                    logger.error("An exception was thrown by busy-hook thread-pool submission, ignoring", e)
+                                }
+                            }
+                        }
+
+                        if (lateMessagesShouldDrop) {
+                            shouldEnqueue = false
+                        }
+                    }
+                }
+
                 c.waitStart.compareAndSet(0, System.nanoTime())
             }
-            if (queuePushbackWait <= 0L) {
-                boltExecutionPool.enqueue(message)
-            } else {
-                scheduledExecutor.schedule(
-                    {
-                        boltExecutionPool.enqueue(message)
-                    },
-                    queuePushbackWait, TimeUnit.MILLISECONDS
-                )
+
+            if (shouldEnqueue) {
+                if (queuePushbackWait <= 0L) {
+                    boltExecutionPool.enqueue(message)
+                } else {
+                    scheduledExecutor.schedule(
+                        {
+                            boltExecutionPool.enqueue(message)
+                        },
+                        queuePushbackWait, TimeUnit.MILLISECONDS
+                    )
+                }
             }
         }
     }

@@ -77,7 +77,7 @@ class SpoutPrepareMessage(component: KumulusComponent, collector: KumulusSpoutCo
 class BoltPrepareMessage(component: KumulusComponent, collector: KumulusBoltCollector) :
     PrepareMessage<KumulusBolt>(component, collector)
 
-class ExecuteMessage(component: KumulusComponent, val tuple: KumulusTuple) :
+class ExecuteMessage(component: KumulusComponent, val tuple: KumulusTuple, val isLate: AtomicBoolean = AtomicBoolean(false)) :
     KumulusMessage(component)
 
 class AckMessage(
