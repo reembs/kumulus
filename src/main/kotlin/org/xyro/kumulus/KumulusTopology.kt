@@ -301,12 +301,13 @@ class KumulusTopology(
             logger.trace { "Component ${c.componentId}/${c.taskId} is currently busy" }
             var shouldEnqueue = true
             if (message is ExecuteMessage) {
-                val messageWaitStartTime =  c.waitStart.get()
-                if (messageWaitStartTime > 0){
+                val messageWaitStartTime = c.waitStart.get()
+                if (messageWaitStartTime > 0) {
                     val delay = System.nanoTime() - messageWaitStartTime
                     if ((delay >= lateMessageMaxWaitInNanos) &&
-                        lateMessagesStreamsToDrop.contains(message.tuple.kTuple.sourceStreamId)) {
-                        if (!message.isLate.get()){
+                        lateMessagesStreamsToDrop.contains(message.tuple.kTuple.sourceStreamId)
+                    ) {
+                        if (!message.isLate.get()) {
                             message.isLate.set(true)
                             onLateMessageHook?.let { onLateMessageHook ->
                                 try {
@@ -328,7 +329,7 @@ class KumulusTopology(
                             }
                         }
 
-                        if (lateMessagesShouldDrop){
+                        if (lateMessagesShouldDrop) {
                             shouldEnqueue = false
                         }
                     }
@@ -337,7 +338,7 @@ class KumulusTopology(
                 c.waitStart.compareAndSet(0, System.nanoTime())
             }
 
-            if (shouldEnqueue){
+            if (shouldEnqueue) {
                 if (queuePushbackWait <= 0L) {
                     boltExecutionPool.enqueue(message)
                 } else {
