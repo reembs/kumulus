@@ -45,10 +45,9 @@ class KumulusTopology(
     private val atomicMaxThreadsInUse = AtomicInteger(0)
 
     @Suppress("UNCHECKED_CAST")
-    private val lateMessagesStreamsToDrop: Set<String> = config[CONF_LATE_MESSAGES_DROPPING_STREAMS_NAME] as? Set<String> ?: emptySet()
-    private val lateMessagesShouldDrop: Boolean = config[CONF_LATE_MESSAGES_DROPPING_SHOULD_DROP] as? Boolean ?: false
-    private val lateMessageMaxWaitInNanos: Long = (config[CONF_LATE_MESSAGES_DROPPING_MAX_WAIT_SECONDS] as? Long ?: 10) * 1_000_000_000L
-
+    private val lateMessagesStreamsToDrop: Set<String> = config[CONF_LATE_MESSAGES_DROPPING_STREAMS_NAME] as Set<String>? ?: emptySet()
+    private val lateMessagesShouldDrop: Boolean = config[CONF_LATE_MESSAGES_DROPPING_SHOULD_DROP] as Boolean? ?: false
+    private val lateMessageMaxWaitInNanos: Long = (config[CONF_LATE_MESSAGES_DROPPING_MAX_WAIT_SECONDS] as Long? ?: 10) * 1_000_000_000L
 
     private val scheduledExecutorPoolSize: Int =
         (config[CONF_SCHEDULED_EXECUTOR_THREAD_POOL_SIZE] as? Long ?: 5L).toInt()
@@ -308,6 +307,7 @@ class KumulusTopology(
                     if ((delay >= lateMessageMaxWaitInNanos) &&
                         lateMessagesStreamsToDrop.contains(message.tuple.kTuple.sourceStreamId)) {
                         if (!message.isLate.get()){
+                            message.isLate.set(true)
                             onLateMessageHook?.let { onLateMessageHook ->
                                 try {
                                     scheduledExecutor.submit {
@@ -326,8 +326,6 @@ class KumulusTopology(
                                     logger.error("An exception was thrown by busy-hook thread-pool submission, ignoring", e)
                                 }
                             }
-                            
-                            message.isLate.set(true)
                         }
 
                         if (lateMessagesShouldDrop){
