@@ -9,26 +9,26 @@ class KumulusTuple(
     component: KumulusComponent,
     streamId: String,
     tuple: List<Any>,
-    messageId: Any?
+    messageId: Any?,
 ) {
     private val spoutMessageId = messageId
 
-    val kTuple: Tuple = TupleImpl(
-        component.context,
-        tuple,
-        component.taskId,
-        streamId,
-        KumulusMessageId(),
-        spoutMessageId
-    )
+    val kTuple: Tuple =
+        TupleImpl(
+            component.context,
+            tuple,
+            component.taskId,
+            streamId,
+            KumulusMessageId(),
+            spoutMessageId,
+        )
 
-    override fun toString(): String {
-        return "KumulusTuple: " +
+    override fun toString(): String =
+        "KumulusTuple: " +
             "MsgID ${(kTuple as TupleImpl).spoutMessageId}, " +
             "Source: ${kTuple.sourceComponent}, " +
             "Source Stream: ${kTuple.sourceStreamId}, " +
             "Tuple: ${kTuple.values}"
-    }
 
     class KumulusMessageId : MessageId(HashMap<Long, Long>())
 }

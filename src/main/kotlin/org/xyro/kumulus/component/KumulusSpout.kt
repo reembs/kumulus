@@ -1,6 +1,6 @@
 package org.xyro.kumulus.component
 
-import mu.KotlinLogging
+import io.github.oshai.kotlinlogging.KotlinLogging
 import org.apache.storm.spout.SpoutOutputCollector
 import org.apache.storm.task.TopologyContext
 import org.apache.storm.topology.IRichSpout
@@ -13,7 +13,7 @@ import java.util.concurrent.atomic.AtomicBoolean
 class KumulusSpout(
     config: Map<String, Any>,
     context: TopologyContext,
-    componentInstance: IRichSpout
+    componentInstance: IRichSpout,
 ) : KumulusComponent(config, context) {
     companion object {
         private val logger = KotlinLogging.logger {}
@@ -27,7 +27,9 @@ class KumulusSpout(
     val queue = LinkedBlockingQueue<AckMessage>()
 
     fun prepare(collector: KumulusSpoutCollector) {
-        logger.debug { "Created spout '$componentId' with taskId $taskId (index: ${context.thisTaskIndex}). Object hashcode: ${this.hashCode()}" }
+        logger.debug {
+            "Created spout '$componentId' with taskId $taskId (index: ${context.thisTaskIndex}). Object hashcode: ${this.hashCode()}"
+        }
         spout.open(config, context, SpoutOutputCollector(collector))
         super.prepare()
     }
@@ -43,7 +45,7 @@ class KumulusSpout(
     private fun fail(
         msgId: Any?,
         timeoutComponents: List<String>,
-        failedComponents: List<String>
+        failedComponents: List<String>,
     ) {
         if (spout is KumulusTimeoutNotificationSpout) {
             spout.messageIdFailure(msgId, failedComponents, timeoutComponents)
@@ -96,26 +98,28 @@ class KumulusSpout(
     }
 
     private fun mainLoopMethod(acker: KumulusAcker) {
-        queue.poll()?.also { ackMessage ->
-            if (ackMessage.ack) {
-                ack(ackMessage.spoutMessageId)
-            } else {
-                fail(ackMessage.spoutMessageId, ackMessage.timeoutComponents, ackMessage.failedComponents)
-            }
-        }.let {
-            if (it == null && isReady.get()) {
-                if (acker.waitForSpoutAvailability()) {
-                    if (inUse.compareAndSet(false, true)) {
-                        try {
-                            if (isReady.get()) {
-                                nextTuple()
+        queue
+            .poll()
+            ?.also { ackMessage ->
+                if (ackMessage.ack) {
+                    ack(ackMessage.spoutMessageId)
+                } else {
+                    fail(ackMessage.spoutMessageId, ackMessage.timeoutComponents, ackMessage.failedComponents)
+                }
+            }.let {
+                if (it == null && isReady.get()) {
+                    if (acker.waitForSpoutAvailability()) {
+                        if (inUse.compareAndSet(false, true)) {
+                            try {
+                                if (isReady.get()) {
+                                    nextTuple()
+                                }
+                            } finally {
+                                inUse.set(false)
                             }
-                        } finally {
-                            inUse.set(false)
                         }
                     }
                 }
             }
-        }
     }
 }

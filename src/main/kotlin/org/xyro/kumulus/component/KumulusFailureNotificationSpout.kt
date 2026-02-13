@@ -9,5 +9,8 @@ interface KumulusFailureNotificationSpout {
     /**
      * Spout fail hook that includes a list of failed bolts (bolts that did not failed the msgId instead of acking)
      */
-    fun messageIdFailure(msgId: Any?, failedComponents: List<String>)
+    fun messageIdFailure(
+        msgId: Any?,
+        failedComponents: List<String>,
+    )
 }

@@ -6,7 +6,7 @@ import java.util.concurrent.atomic.AtomicInteger
 
 class ExecutionPool(
     size: Int,
-    private val threadFun: (KumulusMessage) -> Unit
+    private val threadFun: (KumulusMessage) -> Unit,
 ) {
     // uncapped, memory for in-flight tuples should be taken into account and factored into max-spout-pending
     private val mainQueue = LinkedBlockingQueue<KumulusMessage>()

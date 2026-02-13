@@ -1,6 +1,6 @@
 package org.xyro.kumulus
 
-import mu.KotlinLogging
+import io.github.oshai.kotlinlogging.KotlinLogging
 import org.apache.storm.shade.org.eclipse.jetty.util.ConcurrentHashSet
 import org.apache.storm.tuple.Tuple
 import org.xyro.kumulus.component.KumulusComponent
@@ -16,7 +16,7 @@ class KumulusAcker(
     private val maxSpoutPending: Long,
     private val allowExtraAcking: Boolean,
     private val messageTimeoutMillis: Long,
-    private val spoutAvailabilityCheckTimeout: Long
+    private val spoutAvailabilityCheckTimeout: Long,
 ) {
     companion object {
         private val logger = KotlinLogging.logger {}
@@ -34,7 +34,10 @@ class KumulusAcker(
         }
     }
 
-    fun startTree(component: KumulusSpout, messageId: Any?) {
+    fun startTree(
+        component: KumulusSpout,
+        messageId: Any?,
+    ) {
         logger.debug { "startTree() -> component: $component, messageId: $messageId" }
         if (messageId == null) {
             notifySpout(component, messageId, listOf())
@@ -71,20 +74,25 @@ class KumulusAcker(
                                         messageState.spout,
                                         messageId,
                                         removedState.pendingTasks.map { it.key },
-                                        removedState.failedTasks.toList()
+                                        removedState.failedTasks.toList(),
                                     )
                                     decrementPending()
                                 }
                             }
                         },
-                        messageTimeoutMillis, TimeUnit.MILLISECONDS
+                        messageTimeoutMillis,
+                        TimeUnit.MILLISECONDS,
                     )
                 }
             }
         }
     }
 
-    fun expandTrees(component: KumulusComponent, dest: Int, tuple: KumulusTuple) {
+    fun expandTrees(
+        component: KumulusComponent,
+        dest: Int,
+        tuple: KumulusTuple,
+    ) {
         logger.debug { "expandTrees() -> component: $component, dest: $dest, tuple: $tuple" }
         (tuple.kTuple as TupleImpl).spoutMessageId?.let { messageId ->
             if (allowExtraAcking && state[messageId] == null) {
@@ -97,7 +105,10 @@ class KumulusAcker(
         }
     }
 
-    fun fail(component: KumulusComponent, input: Tuple?) {
+    fun fail(
+        component: KumulusComponent,
+        input: Tuple?,
+    ) {
         logger.debug { "fail() -> component: $component, input: $input" }
         (input as TupleImpl).spoutMessageId?.let { messageId ->
             val messageState = state[messageId]
@@ -112,15 +123,19 @@ class KumulusAcker(
         }
     }
 
-    fun ack(component: KumulusComponent, input: Tuple?) {
+    fun ack(
+        component: KumulusComponent,
+        input: Tuple?,
+    ) {
         logger.debug { "ack() -> component: $component, input: $input" }
         (input as TupleImpl).spoutMessageId?.let { messageId ->
             val messageState = state[messageId]
             if (allowExtraAcking && state[messageId] == null) {
                 return
             }
-            if (messageState == null)
+            if (messageState == null) {
                 error("State missing for messageId $messageId while acking tuple in $component. Tuple: $input")
+            }
             checkComplete(messageState, component, input)
         }
     }
@@ -144,11 +159,13 @@ class KumulusAcker(
         }
     }
 
-    fun getPendingCount(): Long {
-        return this.currentPending.get()
-    }
+    fun getPendingCount(): Long = this.currentPending.get()
 
-    private fun checkComplete(messageState: MessageState, component: KumulusComponent, input: Tuple?) {
+    private fun checkComplete(
+        messageState: MessageState,
+        component: KumulusComponent,
+        input: Tuple?,
+    ) {
         (input as TupleImpl).spoutMessageId?.let { spoutMessageId ->
             val removedTask = messageState.pendingTasks.remove(component.taskId)
             if (removedTask == null) {
@@ -174,24 +191,33 @@ class KumulusAcker(
         }
     }
 
-    private fun debugMessage(component: KumulusComponent, spoutMessageId: Any, messageState: MessageState) {
+    private fun debugMessage(
+        component: KumulusComponent,
+        spoutMessageId: Any,
+        messageState: MessageState,
+    ) {
         logger.debug {
             "Pending task from $component for message $spoutMessageId was completed. " +
-                "Current pending tuples are:" + messageState.pendingTasks.let {
-                if (it.isEmpty()) {
-                    " Empty\n"
-                } else {
-                    val sb = StringBuilder("\n")
-                    it.forEach { (k, v) ->
-                        sb.append("$k: $v\n")
+                "Current pending tuples are:" +
+                messageState.pendingTasks.let {
+                    if (it.isEmpty()) {
+                        " Empty\n"
+                    } else {
+                        val sb = StringBuilder("\n")
+                        it.forEach { (k, v) ->
+                            sb.append("$k: $v\n")
+                        }
+                        sb.toString()
                     }
-                    sb.toString()
                 }
-            }
         }
     }
 
-    private fun notifySpout(spout: KumulusSpout, spoutMessageId: Any?, failedTasks: List<Int>) {
+    private fun notifySpout(
+        spout: KumulusSpout,
+        spoutMessageId: Any?,
+        failedTasks: List<Int>,
+    ) {
         this.notifySpout(spout, spoutMessageId, listOf(), failedTasks)
     }
 
@@ -199,7 +225,7 @@ class KumulusAcker(
         spout: KumulusSpout,
         spoutMessageId: Any?,
         timeoutTasks: List<Int>,
-        failedTasks: List<Int>
+        failedTasks: List<Int>,
     ) {
         emitter.completeMessageProcessing(spout, spoutMessageId, timeoutTasks, failedTasks)
     }
@@ -209,7 +235,9 @@ class KumulusAcker(
             synchronized(waitObject) {
                 val currentPending = currentPending.decrementAndGet()
                 if (currentPending >= maxSpoutPending) {
-                    logger.error { "Max spout pending must have exceeded limit of $maxSpoutPending, current after decrement is $currentPending" }
+                    logger.error {
+                        "Max spout pending must have exceeded limit of $maxSpoutPending, current after decrement is $currentPending"
+                    }
                     assert(false) {
                         "Max spout pending must have exceeded limit of $maxSpoutPending, current after decrement is $currentPending"
                     }
@@ -224,7 +252,7 @@ class KumulusAcker(
     }
 
     inner class MessageState(
-        val spout: KumulusSpout
+        val spout: KumulusSpout,
     ) {
         val pendingTasks = ConcurrentHashMap<Int, Tuple>()
         val failedTasks = ConcurrentHashSet<Int>()

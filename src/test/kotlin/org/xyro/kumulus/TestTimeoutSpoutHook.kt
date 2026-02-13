@@ -41,9 +41,11 @@ class TestTimeoutSpoutHook {
         config[KumulusTopology.CONF_THREAD_POOL_CORE_SIZE] = 5L
 
         builder.setSpout("spout", TestSpout())
-        builder.setBolt("timeout-bolt", TestBolt(true))
+        builder
+            .setBolt("timeout-bolt", TestBolt(true))
             .noneGrouping("spout")
-        builder.setBolt("acking-bolt", TestBolt(false))
+        builder
+            .setBolt("acking-bolt", TestBolt(false))
             .noneGrouping("spout")
         val kumulusTopology =
             KumulusStormTransformer.initializeTopology(builder.createTopology(), config, "test")
@@ -70,9 +72,11 @@ class TestTimeoutSpoutHook {
         config[KumulusTopology.CONF_THREAD_POOL_CORE_SIZE] = 5L
 
         builder.setSpout("spout", TestSpout())
-        builder.setBolt("fail-bolt", TestFailingBolt())
+        builder
+            .setBolt("fail-bolt", TestFailingBolt())
             .noneGrouping("spout")
-        builder.setBolt("acking-bolt", TestBolt(false))
+        builder
+            .setBolt("acking-bolt", TestBolt(false))
             .noneGrouping("spout")
         val kumulusTopology =
             KumulusStormTransformer.initializeTopology(builder.createTopology(), config, "test")
@@ -89,10 +93,16 @@ class TestTimeoutSpoutHook {
         assertTrue { missingBolts.get().isEmpty() }
     }
 
-    class TestSpout : DummySpout({ it.declare(Fields("id")) }), KumulusTimeoutNotificationSpout {
+    class TestSpout :
+        DummySpout({ it.declare(Fields("id")) }),
+        KumulusTimeoutNotificationSpout {
         private var index: Int = 0
 
-        override fun open(conf: MutableMap<Any?, Any?>?, context: TopologyContext?, collector: SpoutOutputCollector?) {
+        override fun open(
+            conf: MutableMap<Any?, Any?>?,
+            context: TopologyContext?,
+            collector: SpoutOutputCollector?,
+        ) {
             super.open(conf, context, collector)
             this.index = 0
         }
@@ -106,7 +116,11 @@ class TestTimeoutSpoutHook {
             done.countDown()
         }
 
-        override fun messageIdFailure(msgId: Any?, failedComponents: List<String>, timeoutComponents: List<String>) {
+        override fun messageIdFailure(
+            msgId: Any?,
+            failedComponents: List<String>,
+            timeoutComponents: List<String>,
+        ) {
             missingBolts.set(timeoutComponents)
             failedBolts.set(failedComponents)
         }
@@ -117,7 +131,9 @@ class TestTimeoutSpoutHook {
         }
     }
 
-    class TestBolt(private val shouldTimeout: Boolean) : IRichBolt {
+    class TestBolt(
+        private val shouldTimeout: Boolean,
+    ) : IRichBolt {
         private lateinit var collector: OutputCollector
 
         override fun execute(input: Tuple) {
@@ -126,16 +142,27 @@ class TestTimeoutSpoutHook {
             }
         }
 
-        override fun prepare(p0: MutableMap<Any?, Any?>?, p1: TopologyContext?, p2: OutputCollector) {
+        override fun prepare(
+            p0: MutableMap<Any?, Any?>?,
+            p1: TopologyContext?,
+            p2: OutputCollector,
+        ) {
             this.collector = p2
         }
+
         override fun cleanup() = Unit
+
         override fun getComponentConfiguration(): MutableMap<String, Any> = mutableMapOf()
+
         override fun declareOutputFields(p0: OutputFieldsDeclarer) = Unit
     }
 
     class TestFailingBolt : BaseBasicBolt() {
-        override fun execute(p0: Tuple?, p1: BasicOutputCollector?) = throw FailedException()
+        override fun execute(
+            p0: Tuple?,
+            p1: BasicOutputCollector?,
+        ) = throw FailedException()
+
         override fun declareOutputFields(p0: OutputFieldsDeclarer?) = Unit
     }
 

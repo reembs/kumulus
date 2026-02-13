@@ -1,6 +1,6 @@
 package org.xyro.kumulus.component
 
-import mu.KotlinLogging
+import io.github.oshai.kotlinlogging.KotlinLogging
 import org.apache.storm.generated.ComponentCommon
 import org.apache.storm.generated.GlobalStreamId
 import org.apache.storm.generated.Grouping
@@ -14,7 +14,7 @@ class KumulusBolt(
     config: Map<String, Any>,
     context: TopologyContext,
     componentInstance: IRichBolt,
-    common: ComponentCommon?
+    common: ComponentCommon?,
 ) : KumulusComponent(config, context) {
     companion object {
         private val logger = KotlinLogging.logger {}
@@ -28,7 +28,9 @@ class KumulusBolt(
     private val bolt: IRichBolt = componentInstance
 
     fun prepare(collector: KumulusBoltCollector) {
-        logger.info { "Created bolt '$componentId' with taskId $taskId (index: ${context.thisTaskIndex}). Object hashcode: ${this.hashCode()}" }
+        logger.info {
+            "Created bolt '$componentId' with taskId $taskId (index: ${context.thisTaskIndex}). Object hashcode: ${this.hashCode()}"
+        }
         bolt.prepare(config, context, OutputCollector(collector))
         super.prepare()
     }

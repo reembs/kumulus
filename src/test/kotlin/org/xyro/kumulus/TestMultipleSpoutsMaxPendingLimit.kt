@@ -1,6 +1,6 @@
 package org.xyro.kumulus
 
-import mu.KotlinLogging
+import io.github.oshai.kotlinlogging.KotlinLogging
 import org.apache.storm.Config
 import org.apache.storm.task.OutputCollector
 import org.apache.storm.task.TopologyContext
@@ -31,7 +31,8 @@ class TestMultipleSpoutsMaxPendingLimit {
         builder.setSpout("spout2", TestSpout())
         builder.setSpout("spout3", TestSpout())
 
-        builder.setBolt("acking-bolt", TestBolt())
+        builder
+            .setBolt("acking-bolt", TestBolt())
             .allGrouping("spout")
             .allGrouping("spout2")
             .allGrouping("spout3")
@@ -60,7 +61,8 @@ class TestMultipleSpoutsMaxPendingLimit {
 
         builder.setSpout("spout", TestSpout())
 
-        builder.setBolt("sleeping-bolt", SleepingBolt(), 4)
+        builder
+            .setBolt("sleeping-bolt", SleepingBolt(), 4)
             .shuffleGrouping("spout")
         val kumulusTopology =
             KumulusStormTransformer.initializeTopology(builder.createTopology(), config, "test")
@@ -94,12 +96,17 @@ class TestMultipleSpoutsMaxPendingLimit {
     }
 
     class SleepingBolt : BaseBasicBolt() {
-        override fun execute(input: Tuple, collector: BasicOutputCollector) {
+        override fun execute(
+            input: Tuple,
+            collector: BasicOutputCollector,
+        ) {
             inFlight.incrementAndGet()
             Thread.sleep(100)
             inFlight.decrementAndGet()
         }
+
         override fun declareOutputFields(declarer: OutputFieldsDeclarer) = Unit
+
         companion object {
             val inFlight = AtomicInteger(0)
         }
@@ -113,11 +120,18 @@ class TestMultipleSpoutsMaxPendingLimit {
             collector.ack(input)
         }
 
-        override fun prepare(p0: MutableMap<Any?, Any?>?, p1: TopologyContext?, p2: OutputCollector) {
+        override fun prepare(
+            p0: MutableMap<Any?, Any?>?,
+            p1: TopologyContext?,
+            p2: OutputCollector,
+        ) {
             this.collector = p2
         }
+
         override fun cleanup() = Unit
+
         override fun getComponentConfiguration(): MutableMap<String, Any> = mutableMapOf()
+
         override fun declareOutputFields(p0: OutputFieldsDeclarer) = Unit
     }
 

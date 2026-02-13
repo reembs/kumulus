@@ -23,7 +23,8 @@ class TestPrepareException {
         config[KumulusTopology.CONF_THREAD_POOL_CORE_SIZE] = 5L
 
         builder.setSpout("spout", TestSpout())
-        builder.setBolt("prepare-exception-bolt", TestBolt(0))
+        builder
+            .setBolt("prepare-exception-bolt", TestBolt(0))
             .noneGrouping("spout")
         val kumulusTopology =
             KumulusStormTransformer.initializeTopology(builder.createTopology(), config, "test")
@@ -40,7 +41,8 @@ class TestPrepareException {
         config[KumulusTopology.CONF_THREAD_POOL_CORE_SIZE] = 5L
 
         builder.setSpout("spout", TestSpout())
-        builder.setBolt("prepare-exception-bolt", TestBolt(30))
+        builder
+            .setBolt("prepare-exception-bolt", TestBolt(30))
             .noneGrouping("spout")
         val kumulusTopology =
             KumulusStormTransformer.initializeTopology(builder.createTopology(), config, "test")
@@ -53,14 +55,24 @@ class TestPrepareException {
         }
     }
 
-    class TestBolt(private val prepareDelaySecs: Int) : IRichBolt {
+    class TestBolt(
+        private val prepareDelaySecs: Int,
+    ) : IRichBolt {
         override fun execute(input: Tuple) = Unit
-        override fun prepare(p0: MutableMap<Any?, Any?>?, p1: TopologyContext?, p2: OutputCollector) {
+
+        override fun prepare(
+            p0: MutableMap<Any?, Any?>?,
+            p1: TopologyContext?,
+            p2: OutputCollector,
+        ) {
             Thread.sleep((prepareDelaySecs * 1000).toLong())
             throw TestException()
         }
+
         override fun cleanup() = Unit
+
         override fun getComponentConfiguration(): MutableMap<String, Any> = mutableMapOf()
+
         override fun declareOutputFields(p0: OutputFieldsDeclarer) = Unit
     }
 

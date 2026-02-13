@@ -17,7 +17,7 @@ import java.util.concurrent.atomic.AtomicLong
 
 abstract class KumulusComponent(
     protected val config: Map<String, Any>,
-    val context: TopologyContext
+    val context: TopologyContext,
 ) {
     val inUse = AtomicBoolean(false)
     val isReady = AtomicBoolean(false)
@@ -37,53 +37,62 @@ abstract class KumulusComponent(
         val groupingStateMap: MutableMap<String, MutableMap<String, CustomStreamGrouping>> = mutableMapOf()
         context.thisTargets.forEach { stream, groupings ->
             groupings.forEach { component, grouping ->
-                val kGrouping = if (grouping.is_set_all) {
-                    AllGrouping()
-                } else if (grouping.is_set_none || grouping.is_set_shuffle || grouping.is_set_local_or_shuffle) {
-                    ShuffleGrouping()
-                } else if (grouping.is_set_fields) {
-                    FieldsGrouping(grouping._fields, context.thisOutputFieldsForStreams[stream]!!)
-                } else if (grouping.is_set_custom_serialized) {
-                    val customGrouping = Utils.javaDeserialize(grouping._custom_serialized, Serializable::class.java)!!
-                    customGrouping as CustomStreamGrouping
-                } else {
-                    throw UnsupportedOperationException("Grouping type $grouping isn't currently supported by Kumulus")
-                }
+                val kGrouping =
+                    if (grouping.is_set_all) {
+                        AllGrouping()
+                    } else if (grouping.is_set_none || grouping.is_set_shuffle || grouping.is_set_local_or_shuffle) {
+                        ShuffleGrouping()
+                    } else if (grouping.is_set_fields) {
+                        FieldsGrouping(grouping._fields, context.thisOutputFieldsForStreams[stream]!!)
+                    } else if (grouping.is_set_custom_serialized) {
+                        val customGrouping = Utils.javaDeserialize(grouping._custom_serialized, Serializable::class.java)!!
+                        customGrouping as CustomStreamGrouping
+                    } else {
+                        throw UnsupportedOperationException("Grouping type $grouping isn't currently supported by Kumulus")
+                    }
                 kGrouping.prepare(this.context, GlobalStreamId(component, stream), context.getComponentTasks(component))
-                groupingStateMap[stream] = (groupingStateMap[stream] ?: mutableMapOf()).also {
-                    it[component] = kGrouping
-                }
+                groupingStateMap[stream] =
+                    (groupingStateMap[stream] ?: mutableMapOf()).also {
+                        it[component] = kGrouping
+                    }
             }
         }
         this.groupingStateMap = groupingStateMap
         isReady.set(true)
     }
 
-    override fun toString(): String {
-        return "[Component $componentId->$taskId]"
-    }
+    override fun toString(): String = "[Component $componentId->$taskId]"
 }
 
-abstract class KumulusMessage(val component: KumulusComponent)
+abstract class KumulusMessage(
+    val component: KumulusComponent,
+)
 
 abstract class PrepareMessage<in T : KumulusComponent>(
     component: KumulusComponent,
-    val collector: KumulusCollector<in T>
+    val collector: KumulusCollector<in T>,
 ) : KumulusMessage(component)
 
-class SpoutPrepareMessage(component: KumulusComponent, collector: KumulusSpoutCollector) :
-    PrepareMessage<KumulusSpout>(component, collector)
+class SpoutPrepareMessage(
+    component: KumulusComponent,
+    collector: KumulusSpoutCollector,
+) : PrepareMessage<KumulusSpout>(component, collector)
 
-class BoltPrepareMessage(component: KumulusComponent, collector: KumulusBoltCollector) :
-    PrepareMessage<KumulusBolt>(component, collector)
+class BoltPrepareMessage(
+    component: KumulusComponent,
+    collector: KumulusBoltCollector,
+) : PrepareMessage<KumulusBolt>(component, collector)
 
-class ExecuteMessage(component: KumulusComponent, val tuple: KumulusTuple, val isLate: AtomicBoolean = AtomicBoolean(false)) :
-    KumulusMessage(component)
+class ExecuteMessage(
+    component: KumulusComponent,
+    val tuple: KumulusTuple,
+    val isLate: AtomicBoolean = AtomicBoolean(false),
+) : KumulusMessage(component)
 
 class AckMessage(
     spout: KumulusSpout,
     val spoutMessageId: Any?,
     val ack: Boolean,
     val timeoutComponents: List<String>,
-    val failedComponents: List<String>
+    val failedComponents: List<String>,
 ) : KumulusMessage(spout)

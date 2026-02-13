@@ -33,17 +33,28 @@ class KumulusTopologyBuilder {
     private val bolts: LinkedHashMap<String, KumulusDeclaredBolt> = LinkedHashMap()
     private val stateSpouts: LinkedHashMap<String, IRichStateSpout> = LinkedHashMap()
 
-    fun setSpout(id: String, spout: IRichSpout): KumulusSpoutDeclarer {
+    fun setSpout(
+        id: String,
+        spout: IRichSpout,
+    ): KumulusSpoutDeclarer {
         validateUnusedId(id)
         return registerSpout(id, spout, null)
     }
 
-    fun setSpout(id: String, spout: IRichSpout, parallelismHint: Number): KumulusSpoutDeclarer {
+    fun setSpout(
+        id: String,
+        spout: IRichSpout,
+        parallelismHint: Number,
+    ): KumulusSpoutDeclarer {
         validateUnusedId(id)
         return registerSpout(id, spout, parallelismHint)
     }
 
-    private fun registerSpout(id: String, spout: IRichSpout, parallelismHint: Number?): KumulusSpoutDeclarer {
+    private fun registerSpout(
+        id: String,
+        spout: IRichSpout,
+        parallelismHint: Number?,
+    ): KumulusSpoutDeclarer {
         val common = ComponentCommon()
         common.set_inputs(mutableMapOf())
         initCommon(common, spout, parallelismHint)
@@ -53,57 +64,78 @@ class KumulusTopologyBuilder {
         return KumulusSpoutDeclarer(spouts[id]!!)
     }
 
-    fun setBolt(id: String, bolt: IRichBolt): KumulusBoltDeclarer {
-        return setBoltInternal(id, bolt, null)
-    }
+    fun setBolt(
+        id: String,
+        bolt: IRichBolt,
+    ): KumulusBoltDeclarer = setBoltInternal(id, bolt, null)
 
-    private fun setBoltInternal(id: String, bolt: IRichBolt, parallelismHint: Number?): KumulusBoltDeclarer {
+    private fun setBoltInternal(
+        id: String,
+        bolt: IRichBolt,
+        parallelismHint: Number?,
+    ): KumulusBoltDeclarer {
         validateUnusedId(id)
         return registerBolt(id, bolt, parallelismHint)
     }
 
-    fun setBolt(id: String, bolt: IWindowedBolt): KumulusBoltDeclarer {
-        return setBoltInternal(id, WindowedBoltExecutor(bolt), null)
-    }
+    fun setBolt(
+        id: String,
+        bolt: IWindowedBolt,
+    ): KumulusBoltDeclarer = setBoltInternal(id, WindowedBoltExecutor(bolt), null)
 
-    fun setBolt(id: String, bolt: IWindowedBolt, parallelismHint: Number): KumulusBoltDeclarer {
-        return setBolt(id, WindowedBoltExecutor(bolt), parallelismHint)
-    }
+    fun setBolt(
+        id: String,
+        bolt: IWindowedBolt,
+        parallelismHint: Number,
+    ): KumulusBoltDeclarer = setBolt(id, WindowedBoltExecutor(bolt), parallelismHint)
 
-    fun <T : State?> setBolt(id: String, bolt: IStatefulBolt<T>): KumulusBoltDeclarer {
-        return setBoltInternal(id, StatefulBoltExecutor(bolt), null)
-    }
+    fun <T : State?> setBolt(
+        id: String,
+        bolt: IStatefulBolt<T>,
+    ): KumulusBoltDeclarer = setBoltInternal(id, StatefulBoltExecutor(bolt), null)
 
-    fun <T : State?> setBolt(id: String, bolt: IStatefulBolt<T>, parallelismHint: Number): KumulusBoltDeclarer {
-        return setBolt(id, StatefulBoltExecutor(bolt), parallelismHint)
-    }
-
-    fun <T : State?> setBolt(id: String, bolt: IStatefulWindowedBolt<T>): KumulusBoltDeclarer {
-        return setBoltInternal(id, StatefulWindowedBoltExecutor(bolt), null)
-    }
+    fun <T : State?> setBolt(
+        id: String,
+        bolt: IStatefulBolt<T>,
+        parallelismHint: Number,
+    ): KumulusBoltDeclarer = setBolt(id, StatefulBoltExecutor(bolt), parallelismHint)
 
     fun <T : State?> setBolt(
         id: String,
         bolt: IStatefulWindowedBolt<T>,
-        parallelismHint: Number
+    ): KumulusBoltDeclarer = setBoltInternal(id, StatefulWindowedBoltExecutor(bolt), null)
+
+    fun <T : State?> setBolt(
+        id: String,
+        bolt: IStatefulWindowedBolt<T>,
+        parallelismHint: Number,
+    ): KumulusBoltDeclarer = setBolt(id, StatefulWindowedBoltExecutor(bolt), parallelismHint)
+
+    fun setBolt(
+        id: String,
+        bolt: IBasicBolt,
+    ): KumulusBoltDeclarer = setBoltInternal(id, BasicBoltExecutor(bolt), null)
+
+    fun setBolt(
+        id: String,
+        bolt: IBasicBolt,
+        parallelismHint: Number,
+    ): KumulusBoltDeclarer = setBolt(id, BasicBoltExecutor(bolt), parallelismHint)
+
+    fun setBolt(
+        id: String,
+        bolt: IRichBolt,
+        parallelismHint: Number,
     ): KumulusBoltDeclarer {
-        return setBolt(id, StatefulWindowedBoltExecutor(bolt), parallelismHint)
-    }
-
-    fun setBolt(id: String, bolt: IBasicBolt): KumulusBoltDeclarer {
-        return setBoltInternal(id, BasicBoltExecutor(bolt), null)
-    }
-
-    fun setBolt(id: String, bolt: IBasicBolt, parallelismHint: Number): KumulusBoltDeclarer {
-        return setBolt(id, BasicBoltExecutor(bolt), parallelismHint)
-    }
-
-    fun setBolt(id: String, bolt: IRichBolt, parallelismHint: Number): KumulusBoltDeclarer {
         validateUnusedId(id)
         return registerBolt(id, bolt, parallelismHint)
     }
 
-    private fun registerBolt(id: String, bolt: IRichBolt, parallelismHint: Number?): KumulusBoltDeclarer {
+    private fun registerBolt(
+        id: String,
+        bolt: IRichBolt,
+        parallelismHint: Number?,
+    ): KumulusBoltDeclarer {
         val common = ComponentCommon()
         common.set_inputs(mutableMapOf())
         initCommon(common, bolt, parallelismHint)
@@ -113,15 +145,20 @@ class KumulusTopologyBuilder {
         return KumulusBoltDeclarer(bolts[id]!!)
     }
 
-    fun createTopology(): KumulusTopologyDefinition {
-        return KumulusTopologyDefinition(spouts.toMap(), bolts.toMap())
-    }
+    fun createTopology(): KumulusTopologyDefinition = KumulusTopologyDefinition(spouts.toMap(), bolts.toMap())
 
-    fun setStateSpout(id: String, spout: IRichStateSpout) {
+    fun setStateSpout(
+        id: String,
+        spout: IRichStateSpout,
+    ) {
         setStateSpout(id, spout, 1)
     }
 
-    fun setStateSpout(id: String, spout: IRichStateSpout, parallelismHint: Number) {
+    fun setStateSpout(
+        id: String,
+        spout: IRichStateSpout,
+        parallelismHint: Number,
+    ) {
         validateUnusedId(id)
         stateSpouts[id] = spout
         throw UnsupportedOperationException("State spouts are not supported in KumulusTopologyBuilder")
@@ -134,7 +171,11 @@ class KumulusTopologyBuilder {
         // Kumulus runs in-process and does not have worker-level hooks.
     }
 
-    private fun initCommon(common: ComponentCommon, component: Any, parallelismHint: Number?) {
+    private fun initCommon(
+        common: ComponentCommon,
+        component: Any,
+        parallelismHint: Number?,
+    ) {
         if (parallelismHint != null) {
             val parallelism = parallelismHint.toInt()
             if (parallelism < 1) {
@@ -143,11 +184,12 @@ class KumulusTopologyBuilder {
             common.set_parallelism_hint(parallelism)
         }
 
-        val config = when (component) {
-            is IRichBolt -> component.componentConfiguration
-            is IRichSpout -> component.componentConfiguration
-            else -> null
-        }
+        val config =
+            when (component) {
+                is IRichBolt -> component.componentConfiguration
+                is IRichSpout -> component.componentConfiguration
+                else -> null
+            }
         if (config != null) {
             common.set_json_conf(JSONValue.toJSONString(config))
         }
@@ -180,27 +222,28 @@ class KumulusTopologyBuilder {
 
 data class KumulusTopologyDefinition(
     val spouts: Map<String, KumulusDeclaredSpout>,
-    val bolts: Map<String, KumulusDeclaredBolt>
+    val bolts: Map<String, KumulusDeclaredBolt>,
 )
 
 data class KumulusDeclaredSpout(
     val id: String,
     val spout: IRichSpout,
-    val common: ComponentCommon
+    val common: ComponentCommon,
 )
 
 data class KumulusDeclaredBolt(
     val id: String,
     val bolt: IRichBolt,
-    val common: ComponentCommon
+    val common: ComponentCommon,
 )
 
 class KumulusSpoutDeclarer internal constructor(
-    private val registration: KumulusDeclaredSpout
+    private val registration: KumulusDeclaredSpout,
 ) {
-    fun addConfiguration(configKey: String, configValue: Any?): KumulusSpoutDeclarer {
-        return addConfigurations(mapOf(configKey to configValue))
-    }
+    fun addConfiguration(
+        configKey: String,
+        configValue: Any?,
+    ): KumulusSpoutDeclarer = addConfigurations(mapOf(configKey to configValue))
 
     fun addConfigurations(conf: Map<String, Any?>): KumulusSpoutDeclarer {
         if (conf.containsKey(Config.TOPOLOGY_KRYO_REGISTER)) {
@@ -218,68 +261,103 @@ class KumulusSpoutDeclarer internal constructor(
 }
 
 class KumulusBoltDeclarer internal constructor(
-    private val registration: KumulusDeclaredBolt
+    private val registration: KumulusDeclaredBolt,
 ) {
-    fun fieldsGrouping(componentId: String, fields: Fields): KumulusBoltDeclarer {
-        return fieldsGrouping(componentId, Utils.DEFAULT_STREAM_ID, fields)
-    }
+    fun fieldsGrouping(
+        componentId: String,
+        fields: Fields,
+    ): KumulusBoltDeclarer = fieldsGrouping(componentId, Utils.DEFAULT_STREAM_ID, fields)
 
-    fun fieldsGrouping(componentId: String, streamId: String, fields: Fields): KumulusBoltDeclarer {
-        return grouping(
+    fun fieldsGrouping(
+        componentId: String,
+        streamId: String,
+        fields: Fields,
+    ): KumulusBoltDeclarer =
+        grouping(
             componentId,
             streamId,
-            Grouping().apply { set_fields(fields.toList()) }
+            Grouping().apply { set_fields(fields.toList()) },
         )
-    }
 
-    fun shuffleGrouping(componentId: String): KumulusBoltDeclarer {
-        return shuffleGrouping(componentId, Utils.DEFAULT_STREAM_ID)
-    }
+    fun shuffleGrouping(componentId: String): KumulusBoltDeclarer = shuffleGrouping(componentId, Utils.DEFAULT_STREAM_ID)
 
-    fun shuffleGrouping(componentId: String, streamId: String): KumulusBoltDeclarer {
-        return grouping(componentId, streamId, Grouping().apply { set_shuffle(NullStruct()) })
-    }
+    fun shuffleGrouping(
+        componentId: String,
+        streamId: String,
+    ): KumulusBoltDeclarer =
+        grouping(
+            componentId,
+            streamId,
+            Grouping().apply {
+                set_shuffle(NullStruct())
+            },
+        )
 
-    fun localOrShuffleGrouping(componentId: String): KumulusBoltDeclarer {
-        return localOrShuffleGrouping(componentId, Utils.DEFAULT_STREAM_ID)
-    }
+    fun localOrShuffleGrouping(componentId: String): KumulusBoltDeclarer = localOrShuffleGrouping(componentId, Utils.DEFAULT_STREAM_ID)
 
-    fun localOrShuffleGrouping(componentId: String, streamId: String): KumulusBoltDeclarer {
-        return grouping(componentId, streamId, Grouping().apply { set_local_or_shuffle(NullStruct()) })
-    }
+    fun localOrShuffleGrouping(
+        componentId: String,
+        streamId: String,
+    ): KumulusBoltDeclarer =
+        grouping(
+            componentId,
+            streamId,
+            Grouping().apply {
+                set_local_or_shuffle(NullStruct())
+            },
+        )
 
-    fun noneGrouping(componentId: String): KumulusBoltDeclarer {
-        return noneGrouping(componentId, Utils.DEFAULT_STREAM_ID)
-    }
+    fun noneGrouping(componentId: String): KumulusBoltDeclarer = noneGrouping(componentId, Utils.DEFAULT_STREAM_ID)
 
-    fun noneGrouping(componentId: String, streamId: String): KumulusBoltDeclarer {
-        return grouping(componentId, streamId, Grouping().apply { set_none(NullStruct()) })
-    }
+    fun noneGrouping(
+        componentId: String,
+        streamId: String,
+    ): KumulusBoltDeclarer =
+        grouping(
+            componentId,
+            streamId,
+            Grouping().apply {
+                set_none(NullStruct())
+            },
+        )
 
-    fun allGrouping(componentId: String): KumulusBoltDeclarer {
-        return allGrouping(componentId, Utils.DEFAULT_STREAM_ID)
-    }
+    fun allGrouping(componentId: String): KumulusBoltDeclarer = allGrouping(componentId, Utils.DEFAULT_STREAM_ID)
 
-    fun allGrouping(componentId: String, streamId: String): KumulusBoltDeclarer {
-        return grouping(componentId, streamId, Grouping().apply { set_all(NullStruct()) })
-    }
+    fun allGrouping(
+        componentId: String,
+        streamId: String,
+    ): KumulusBoltDeclarer =
+        grouping(
+            componentId,
+            streamId,
+            Grouping().apply {
+                set_all(NullStruct())
+            },
+        )
 
-    fun directGrouping(componentId: String): KumulusBoltDeclarer {
-        return directGrouping(componentId, Utils.DEFAULT_STREAM_ID)
-    }
+    fun directGrouping(componentId: String): KumulusBoltDeclarer = directGrouping(componentId, Utils.DEFAULT_STREAM_ID)
 
-    fun directGrouping(componentId: String, streamId: String): KumulusBoltDeclarer {
-        return grouping(componentId, streamId, Grouping().apply { set_direct(NullStruct()) })
-    }
+    fun directGrouping(
+        componentId: String,
+        streamId: String,
+    ): KumulusBoltDeclarer =
+        grouping(
+            componentId,
+            streamId,
+            Grouping().apply {
+                set_direct(NullStruct())
+            },
+        )
 
-    fun customGrouping(componentId: String, grouping: CustomStreamGrouping): KumulusBoltDeclarer {
-        return customGrouping(componentId, Utils.DEFAULT_STREAM_ID, grouping)
-    }
+    fun customGrouping(
+        componentId: String,
+        grouping: CustomStreamGrouping,
+    ): KumulusBoltDeclarer = customGrouping(componentId, Utils.DEFAULT_STREAM_ID, grouping)
 
     fun customGrouping(
         componentId: String,
         streamId: String,
-        grouping: CustomStreamGrouping
+        grouping: CustomStreamGrouping,
     ): KumulusBoltDeclarer {
         if (grouping !is Serializable) {
             throw IllegalArgumentException("Custom grouping must be serializable for Kumulus")
@@ -287,22 +365,28 @@ class KumulusBoltDeclarer internal constructor(
         return this.grouping(
             componentId,
             streamId,
-            Grouping().apply { set_custom_serialized(Utils.javaSerialize(grouping)) }
+            Grouping().apply { set_custom_serialized(Utils.javaSerialize(grouping)) },
         )
     }
 
-    fun grouping(id: GlobalStreamId, grouping: Grouping): KumulusBoltDeclarer {
+    fun grouping(
+        id: GlobalStreamId,
+        grouping: Grouping,
+    ): KumulusBoltDeclarer {
         registration.common.put_to_inputs(id, grouping)
         return this
     }
 
-    fun grouping(componentId: String, streamId: String, grouping: Grouping): KumulusBoltDeclarer {
-        return grouping(GlobalStreamId(componentId, streamId), grouping)
-    }
+    fun grouping(
+        componentId: String,
+        streamId: String,
+        grouping: Grouping,
+    ): KumulusBoltDeclarer = grouping(GlobalStreamId(componentId, streamId), grouping)
 
-    fun addConfiguration(configKey: String, configValue: Any?): KumulusBoltDeclarer {
-        return addConfigurations(mapOf(configKey to configValue))
-    }
+    fun addConfiguration(
+        configKey: String,
+        configValue: Any?,
+    ): KumulusBoltDeclarer = addConfigurations(mapOf(configKey to configValue))
 
     fun addConfigurations(conf: Map<String, Any?>): KumulusBoltDeclarer {
         if (conf.containsKey(Config.TOPOLOGY_KRYO_REGISTER)) {
@@ -326,23 +410,37 @@ private class KumulusOutputFieldsCollector : OutputFieldsDeclarer {
         declare(false, fields)
     }
 
-    override fun declare(direct: Boolean, fields: Fields) {
+    override fun declare(
+        direct: Boolean,
+        fields: Fields,
+    ) {
         declareStream(Utils.DEFAULT_STREAM_ID, direct, fields)
     }
 
-    override fun declareStream(streamId: String, fields: Fields) {
+    override fun declareStream(
+        streamId: String,
+        fields: Fields,
+    ) {
         declareStream(streamId, false, fields)
     }
 
-    override fun declareStream(streamId: String, direct: Boolean, fields: Fields) {
-        streams[streamId] = StreamInfo().apply {
-            set_output_fields(fields.toList())
-            set_direct(direct)
-        }
+    override fun declareStream(
+        streamId: String,
+        direct: Boolean,
+        fields: Fields,
+    ) {
+        streams[streamId] =
+            StreamInfo().apply {
+                set_output_fields(fields.toList())
+                set_direct(direct)
+            }
     }
 }
 
-private fun mergeWithExistingJsonConfig(common: ComponentCommon, update: Map<String, Any?>): MutableMap<String, Any?> {
+private fun mergeWithExistingJsonConfig(
+    common: ComponentCommon,
+    update: Map<String, Any?>,
+): MutableMap<String, Any?> {
     val existing = parseJsonObject(common._json_conf)
     val merged = HashMap(existing)
     merged.putAll(update)

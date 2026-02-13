@@ -7,15 +7,22 @@ import kotlin.math.absoluteValue
 
 class FieldsGrouping(
     private val groupingFields: List<String>,
-    private val outputFields: List<String>
+    private val outputFields: List<String>,
 ) : CustomStreamGrouping {
     private lateinit var tasks: List<Int>
 
-    override fun prepare(context: WorkerTopologyContext, stream: GlobalStreamId, targetTasks: List<Int>) {
+    override fun prepare(
+        context: WorkerTopologyContext,
+        stream: GlobalStreamId,
+        targetTasks: List<Int>,
+    ) {
         this.tasks = targetTasks.toList()
     }
 
-    override fun chooseTasks(taskId: Int, values: List<Any?>): List<Int> {
+    override fun chooseTasks(
+        taskId: Int,
+        values: List<Any?>,
+    ): List<Int> {
         var groupingHashes = 0L
 
         groupingFields.forEach { gField ->
