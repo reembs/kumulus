@@ -11,6 +11,7 @@ import org.apache.storm.topology.OutputFieldsDeclarer
 import org.apache.storm.tuple.Fields
 import org.apache.storm.tuple.Tuple
 import org.junit.Test
+import org.xyro.kumulus.topology.KumulusTopologyBuilder
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicLong
 import kotlin.test.assertTrue
@@ -18,7 +19,7 @@ import kotlin.test.assertTrue
 class TestAnchoringBehavior {
     @Test
     fun testLatentUnanchoredBolt() {
-        val builder = org.apache.storm.topology.TopologyBuilder()
+        val builder = KumulusTopologyBuilder()
         val config: MutableMap<String, Any> = mutableMapOf()
         config[Config.TOPOLOGY_MAX_SPOUT_PENDING] = 1L
         config[KumulusTopology.CONF_THREAD_POOL_CORE_SIZE] = 5L
@@ -35,10 +36,8 @@ class TestAnchoringBehavior {
         builder.setBolt("unanchored-bolt-2", DummyBolt())
             .noneGrouping("spout")
             .noneGrouping("delay-unanchored-bolt")
-
-        val stormTopology = builder.createTopology()!!
         val kumulusTopology =
-            KumulusStormTransformer.initializeTopology(stormTopology, config, "test")
+            KumulusStormTransformer.initializeTopology(builder.createTopology(), config, "test")
 
         kumulusTopology.prepare(10, TimeUnit.SECONDS)
         kumulusTopology.start(block = false)

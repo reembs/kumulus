@@ -14,6 +14,7 @@ import org.apache.storm.tuple.Tuple
 import org.junit.Before
 import org.junit.Test
 import org.xyro.kumulus.component.KumulusTimeoutNotificationSpout
+import org.xyro.kumulus.topology.KumulusTopologyBuilder
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
@@ -32,7 +33,7 @@ class TestTimeoutSpoutHook {
 
     @Test
     fun testTopologyTimeout() {
-        val builder = org.apache.storm.topology.TopologyBuilder()
+        val builder = KumulusTopologyBuilder()
         val config: MutableMap<String, Any> = mutableMapOf()
 
         config[Config.TOPOLOGY_MAX_SPOUT_PENDING] = 1L
@@ -44,10 +45,8 @@ class TestTimeoutSpoutHook {
             .noneGrouping("spout")
         builder.setBolt("acking-bolt", TestBolt(false))
             .noneGrouping("spout")
-
-        val stormTopology = builder.createTopology()!!
         val kumulusTopology =
-            KumulusStormTransformer.initializeTopology(stormTopology, config, "test")
+            KumulusStormTransformer.initializeTopology(builder.createTopology(), config, "test")
         kumulusTopology.prepare(10, TimeUnit.SECONDS)
         kumulusTopology.start(block = false)
         done.await()
@@ -63,7 +62,7 @@ class TestTimeoutSpoutHook {
 
     @Test
     fun testTopologyFailure() {
-        val builder = org.apache.storm.topology.TopologyBuilder()
+        val builder = KumulusTopologyBuilder()
         val config: MutableMap<String, Any> = mutableMapOf()
 
         config[Config.TOPOLOGY_MAX_SPOUT_PENDING] = 1L
@@ -75,10 +74,8 @@ class TestTimeoutSpoutHook {
             .noneGrouping("spout")
         builder.setBolt("acking-bolt", TestBolt(false))
             .noneGrouping("spout")
-
-        val stormTopology = builder.createTopology()!!
         val kumulusTopology =
-            KumulusStormTransformer.initializeTopology(stormTopology, config, "test")
+            KumulusStormTransformer.initializeTopology(builder.createTopology(), config, "test")
         kumulusTopology.prepare(10, TimeUnit.SECONDS)
         kumulusTopology.start(block = false)
         done.await()

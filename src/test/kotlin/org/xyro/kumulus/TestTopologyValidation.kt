@@ -10,22 +10,22 @@ import org.apache.storm.tuple.Fields
 import org.apache.storm.tuple.Tuple
 import org.junit.Test
 import org.xyro.kumulus.KumulusStormTransformer.KumulusTopologyValidationException
+import org.xyro.kumulus.topology.KumulusTopologyBuilder
 
 class TestTopologyValidation {
     @Test(expected = KumulusTopologyValidationException::class)
     fun testMissingTargetBolt() {
-        val builder = org.apache.storm.topology.TopologyBuilder()
+        val builder = KumulusTopologyBuilder()
         val config: MutableMap<String, Any> = mutableMapOf()
         builder.setSpout("spout", DummySpout())
         builder.setBolt("bolt", DummyBolt())
             .noneGrouping("missing-bolt")
-        val stormTopology = builder.createTopology()!!
-        KumulusStormTransformer.initializeTopology(stormTopology, config, "test")
+        KumulusStormTransformer.initializeTopology(builder.createTopology(), config, "test")
     }
 
     @Test(expected = KumulusTopologyValidationException::class)
     fun testMissingTargetStream() {
-        val builder = org.apache.storm.topology.TopologyBuilder()
+        val builder = KumulusTopologyBuilder()
         val config: MutableMap<String, Any> = mutableMapOf()
         builder.setSpout("spout", DummySpout())
 
@@ -33,14 +33,12 @@ class TestTopologyValidation {
 
         builder.setBolt("bolt2", DummyBolt())
             .noneGrouping("bolt", "missing-stream")
-
-        val stormTopology = builder.createTopology()!!
-        KumulusStormTransformer.initializeTopology(stormTopology, config, "test")
+        KumulusStormTransformer.initializeTopology(builder.createTopology(), config, "test")
     }
 
     @Test(expected = KumulusTopologyValidationException::class)
     fun testMissingTargetField() {
-        val builder = org.apache.storm.topology.TopologyBuilder()
+        val builder = KumulusTopologyBuilder()
         val config: MutableMap<String, Any> = mutableMapOf()
         builder.setSpout("spout", DummySpout())
 
@@ -53,14 +51,12 @@ class TestTopologyValidation {
 
         builder.setBolt("bolt2", DummyBolt())
             .fieldsGrouping("bolt", "stream", Fields("num", "non-existing-field"))
-
-        val stormTopology = builder.createTopology()!!
-        KumulusStormTransformer.initializeTopology(stormTopology, config, "test")
+        KumulusStormTransformer.initializeTopology(builder.createTopology(), config, "test")
     }
 
     @Test
     fun testOkay() {
-        val builder = org.apache.storm.topology.TopologyBuilder()
+        val builder = KumulusTopologyBuilder()
         val config: MutableMap<String, Any> = mutableMapOf()
         builder.setSpout("spout", DummySpout())
 
@@ -73,9 +69,7 @@ class TestTopologyValidation {
 
         builder.setBolt("bolt2", DummyBolt())
             .fieldsGrouping("bolt", "stream", Fields("num"))
-
-        val stormTopology = builder.createTopology()!!
-        KumulusStormTransformer.initializeTopology(stormTopology, config, "test")
+        KumulusStormTransformer.initializeTopology(builder.createTopology(), config, "test")
     }
 }
 

@@ -1,3 +1,5 @@
+package org.xyro.kumulus
+
 import mu.KotlinLogging
 import org.HdrHistogram.Histogram
 import org.apache.storm.Config
@@ -11,14 +13,14 @@ import org.apache.storm.topology.BasicOutputCollector
 import org.apache.storm.topology.FailedException
 import org.apache.storm.topology.IRichBolt
 import org.apache.storm.topology.OutputFieldsDeclarer
+import org.apache.storm.topology.TopologyBuilder
 import org.apache.storm.topology.base.BaseBasicBolt
 import org.apache.storm.topology.base.BaseRichSpout
 import org.apache.storm.tuple.Fields
 import org.apache.storm.tuple.Tuple
+import org.junit.Assert.assertEquals
 import org.junit.Ignore
 import org.junit.Test
-import org.xyro.kumulus.KumulusStormTransformer
-import org.xyro.kumulus.KumulusTopology
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
@@ -39,7 +41,9 @@ class KumulusStormTransformerTest {
 
     @Test
     fun test1() {
-        val builder = org.apache.storm.topology.TopologyBuilder()
+        val builder = TopologyBuilder()
+
+        assertEquals("org.apache.storm.topology.TopologyBuilder", builder.javaClass.name)
 
         val config: MutableMap<String, Any> = mutableMapOf()
 
@@ -110,7 +114,7 @@ class KumulusStormTransformerTest {
         config[Config.TOPOLOGY_MAX_SPOUT_PENDING] = maxPending
         config[Config.TOPOLOGY_MESSAGE_TIMEOUT_SECS] = 1
 
-        config[org.xyro.kumulus.KumulusTopology.CONF_THREAD_POOL_CORE_SIZE] = 1
+        config[KumulusTopology.CONF_THREAD_POOL_CORE_SIZE] = 1
 
         val topology = builder.createTopology()!!
 
@@ -169,7 +173,7 @@ class KumulusStormTransformerTest {
     @Test
     @Ignore
     fun test2() {
-        val builder = org.apache.storm.topology.TopologyBuilder()
+        val builder = TopologyBuilder()
 
         val config: MutableMap<String, Any> = mutableMapOf()
         config[Config.TOPOLOGY_MAX_SPOUT_PENDING] = 1
@@ -221,7 +225,7 @@ class KumulusStormTransformerTest {
     @Test
     @Ignore
     fun test3() {
-        val builder = org.apache.storm.topology.TopologyBuilder()
+        val builder = TopologyBuilder()
 
         val config: MutableMap<String, Any> = mutableMapOf()
         config[Config.TOPOLOGY_MAX_SPOUT_PENDING] = 1
