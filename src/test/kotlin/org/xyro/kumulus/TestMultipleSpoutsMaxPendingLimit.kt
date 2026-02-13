@@ -11,6 +11,7 @@ import org.apache.storm.topology.base.BaseBasicBolt
 import org.apache.storm.tuple.Fields
 import org.apache.storm.tuple.Tuple
 import org.junit.Test
+import org.xyro.kumulus.topology.KumulusTopologyBuilder
 import java.util.UUID
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
@@ -19,7 +20,7 @@ import kotlin.test.assertTrue
 class TestMultipleSpoutsMaxPendingLimit {
     @Test
     fun testMultipleSpouts() {
-        val builder = org.apache.storm.topology.TopologyBuilder()
+        val builder = KumulusTopologyBuilder()
         val config: MutableMap<String, Any> = mutableMapOf()
 
         config[Config.TOPOLOGY_MAX_SPOUT_PENDING] = 1L
@@ -34,10 +35,8 @@ class TestMultipleSpoutsMaxPendingLimit {
             .allGrouping("spout")
             .allGrouping("spout2")
             .allGrouping("spout3")
-
-        val stormTopology = builder.createTopology()!!
         val kumulusTopology =
-            KumulusStormTransformer.initializeTopology(stormTopology, config, "test")
+            KumulusStormTransformer.initializeTopology(builder.createTopology(), config, "test")
         kumulusTopology.prepare(10, TimeUnit.SECONDS)
         kumulusTopology.start()
         Thread.sleep(5000)
@@ -52,7 +51,7 @@ class TestMultipleSpoutsMaxPendingLimit {
 
     @Test
     fun testMaxSpoutPending() {
-        val builder = org.apache.storm.topology.TopologyBuilder()
+        val builder = KumulusTopologyBuilder()
         val config: MutableMap<String, Any> = mutableMapOf()
 
         config[Config.TOPOLOGY_MAX_SPOUT_PENDING] = 1L
@@ -63,10 +62,8 @@ class TestMultipleSpoutsMaxPendingLimit {
 
         builder.setBolt("sleeping-bolt", SleepingBolt(), 4)
             .shuffleGrouping("spout")
-
-        val stormTopology = builder.createTopology()!!
         val kumulusTopology =
-            KumulusStormTransformer.initializeTopology(stormTopology, config, "test")
+            KumulusStormTransformer.initializeTopology(builder.createTopology(), config, "test")
         kumulusTopology.prepare(10, TimeUnit.SECONDS)
         kumulusTopology.start()
 

@@ -59,6 +59,24 @@ kumulusTopology.prepare();
 kumulusTopology.start(true);
 ```
 
+Kumulus also provides a native builder with a Storm-like API:
+
+```kotlin
+val builder = org.xyro.kumulus.topology.KumulusTopologyBuilder()
+
+val config: MutableMap<String, Any> = mutableMapOf()
+
+builder.setSpout("spout", Spout())
+builder.setBolt("bolt", Bolt())
+    .shuffleGrouping("spout")
+
+val kumulusTopology = KumulusStormTransformer.initializeTopology(
+    builder.createTopology(), config, "topology_name"
+)
+kumulusTopology.prepare()
+kumulusTopology.start(true)
+```
+
 ## Benchmark
 
 Latency histograms produced by passing 100,000 (10% warm-up) tiny tuples into the fairly simple topology defined in KumulusStormTransformerTest:

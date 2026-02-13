@@ -8,12 +8,13 @@ import org.apache.storm.topology.OutputFieldsDeclarer
 import org.apache.storm.tuple.Fields
 import org.apache.storm.tuple.Tuple
 import org.junit.Test
+import org.xyro.kumulus.topology.KumulusTopologyBuilder
 import java.util.concurrent.TimeUnit
 
 class TestExecuteException {
     @Test(expected = KumulusTopology.KumulusTopologyCrashedException::class, timeout = 5000)
     fun testBoltExecuteException() {
-        val builder = org.apache.storm.topology.TopologyBuilder()
+        val builder = KumulusTopologyBuilder()
         val config: MutableMap<String, Any> = mutableMapOf()
 
         config[Config.TOPOLOGY_MAX_SPOUT_PENDING] = 1L
@@ -23,17 +24,15 @@ class TestExecuteException {
         builder.setSpout("spout", TestSpout())
         builder.setBolt("execute-exception-bolt", TestExecuteExceptionBolt())
             .noneGrouping("spout")
-
-        val stormTopology = builder.createTopology()!!
         val kumulusTopology =
-            KumulusStormTransformer.initializeTopology(stormTopology, config, "test")
+            KumulusStormTransformer.initializeTopology(builder.createTopology(), config, "test")
         kumulusTopology.prepare(2, TimeUnit.SECONDS)
         kumulusTopology.start(true)
     }
 
     @Test(expected = KumulusTopology.KumulusTopologyCrashedException::class, timeout = 5000)
     fun testSpoutNextTupleException() {
-        val builder = org.apache.storm.topology.TopologyBuilder()
+        val builder = KumulusTopologyBuilder()
         val config: MutableMap<String, Any> = mutableMapOf()
 
         config[Config.TOPOLOGY_MAX_SPOUT_PENDING] = 1L
@@ -41,10 +40,8 @@ class TestExecuteException {
         config[KumulusTopology.CONF_THREAD_POOL_CORE_SIZE] = 5L
 
         builder.setSpout("spout", TesExceptiontSpout())
-
-        val stormTopology = builder.createTopology()!!
         val kumulusTopology =
-            KumulusStormTransformer.initializeTopology(stormTopology, config, "test")
+            KumulusStormTransformer.initializeTopology(builder.createTopology(), config, "test")
         kumulusTopology.prepare(2, TimeUnit.SECONDS)
         kumulusTopology.start(true)
     }

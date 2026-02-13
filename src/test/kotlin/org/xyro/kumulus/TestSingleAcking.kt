@@ -10,12 +10,13 @@ import org.apache.storm.topology.base.BaseBasicBolt
 import org.apache.storm.tuple.Fields
 import org.apache.storm.tuple.Tuple
 import org.junit.Test
+import org.xyro.kumulus.topology.KumulusTopologyBuilder
 import java.util.concurrent.TimeUnit
 
 class TestSingleAcking {
     @Test
     fun testSingleAckPerTreeTopology() {
-        val builder = org.apache.storm.topology.TopologyBuilder()
+        val builder = KumulusTopologyBuilder()
         val config: MutableMap<String, Any> = mutableMapOf()
 
         config[Config.TOPOLOGY_MAX_SPOUT_PENDING] = 5L
@@ -27,10 +28,8 @@ class TestSingleAcking {
             .noneGrouping("spout")
         builder.setBolt("bolt2", TestBolt())
             .noneGrouping("spout")
-
-        val stormTopology = builder.createTopology()!!
         val kumulusTopology =
-            KumulusStormTransformer.initializeTopology(stormTopology, config, "test")
+            KumulusStormTransformer.initializeTopology(builder.createTopology(), config, "test")
         kumulusTopology.prepare(10, TimeUnit.SECONDS)
         kumulusTopology.start(false)
         Thread.sleep(5000)
