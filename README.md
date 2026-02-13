@@ -21,7 +21,7 @@ Include via maven
 <dependency>
     <groupId>org.xyro</groupId>
     <artifactId>kumulus</artifactId>
-    <version>0.1.42</version>
+    <version>0.2.0</version>
 </dependency>
 ```
 
