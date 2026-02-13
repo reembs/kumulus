@@ -1,6 +1,6 @@
 package org.xyro.kumulus
 
-import mu.KotlinLogging
+import io.github.oshai.kotlinlogging.KotlinLogging
 import org.apache.storm.Config
 import org.apache.storm.task.OutputCollector
 import org.apache.storm.task.TopologyContext
@@ -30,12 +30,14 @@ class TestAllowExtraAckingMode {
         builder.setSpout("spout2", TestSpout())
         builder.setSpout("spout3", TestSpout())
 
-        builder.setBolt("acking-bolt", TestBolt())
+        builder
+            .setBolt("acking-bolt", TestBolt())
             .allGrouping("spout")
             .allGrouping("spout2")
             .allGrouping("spout3")
 
-        builder.setBolt("acking-bolt2", TestBolt())
+        builder
+            .setBolt("acking-bolt2", TestBolt())
             .allGrouping("spout")
             .allGrouping("spout2")
             .allGrouping("spout3")
@@ -54,8 +56,14 @@ class TestAllowExtraAckingMode {
     }
 
     class TestSpout : DummySpout({ it.declare(Fields("id")) }) {
-        override fun fail(msgId: Any?) { inFlight.decrementAndGet() }
-        override fun ack(msgId: Any?) { inFlight.decrementAndGet() }
+        override fun fail(msgId: Any?) {
+            inFlight.decrementAndGet()
+        }
+
+        override fun ack(msgId: Any?) {
+            inFlight.decrementAndGet()
+        }
+
         override fun nextTuple() {
             val messageId = UUID.randomUUID().toString()
             collector.emit(listOf(messageId), messageId)
@@ -89,11 +97,18 @@ class TestAllowExtraAckingMode {
             collector.ack(input) // extra ack
         }
 
-        override fun prepare(p0: MutableMap<Any?, Any?>?, p1: TopologyContext?, p2: OutputCollector) {
+        override fun prepare(
+            p0: MutableMap<Any?, Any?>?,
+            p1: TopologyContext?,
+            p2: OutputCollector,
+        ) {
             this.collector = p2
         }
+
         override fun cleanup() = Unit
+
         override fun getComponentConfiguration(): MutableMap<String, Any> = mutableMapOf()
+
         override fun declareOutputFields(p0: OutputFieldsDeclarer) = Unit
     }
 

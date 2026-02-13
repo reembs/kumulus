@@ -7,11 +7,16 @@ import org.apache.storm.task.WorkerTopologyContext
 class AllGrouping : CustomStreamGrouping {
     private lateinit var tasks: List<Int>
 
-    override fun prepare(context: WorkerTopologyContext, stream: GlobalStreamId, targetTasks: List<Int>) {
+    override fun prepare(
+        context: WorkerTopologyContext,
+        stream: GlobalStreamId,
+        targetTasks: List<Int>,
+    ) {
         this.tasks = targetTasks.toList()
     }
 
-    override fun chooseTasks(taskId: Int, values: List<Any>): List<Int> {
-        return tasks
-    }
+    override fun chooseTasks(
+        taskId: Int,
+        values: List<Any>,
+    ): List<Int> = tasks
 }

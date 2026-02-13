@@ -12,13 +12,15 @@ class KumulusTopologyBuilderTest {
         val config: MutableMap<String, Any> = mutableMapOf()
 
         builder.setSpout("spout", DummySpout())
-        builder.setBolt(
-            "bolt",
-            DummyBolt {
-                it.declareStream("stream", Fields("num"))
-            }
-        ).noneGrouping("spout")
-        builder.setBolt("bolt2", DummyBolt())
+        builder
+            .setBolt(
+                "bolt",
+                DummyBolt {
+                    it.declareStream("stream", Fields("num"))
+                },
+            ).noneGrouping("spout")
+        builder
+            .setBolt("bolt2", DummyBolt())
             .fieldsGrouping("bolt", "stream", Fields("num"))
 
         KumulusStormTransformer.initializeTopology(builder.createTopology(), config, "test")
@@ -30,7 +32,8 @@ class KumulusTopologyBuilderTest {
         val config: MutableMap<String, Any> = mutableMapOf()
 
         builder.setSpout("spout", DummySpout())
-        builder.setBolt("bolt", DummyBolt())
+        builder
+            .setBolt("bolt", DummyBolt())
             .noneGrouping("missing-bolt")
 
         KumulusStormTransformer.initializeTopology(builder.createTopology(), config, "test")

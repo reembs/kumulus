@@ -1,6 +1,6 @@
 package org.xyro.kumulus
 
-import mu.KotlinLogging
+import io.github.oshai.kotlinlogging.KotlinLogging
 import org.apache.storm.Config
 import org.apache.storm.spout.SpoutOutputCollector
 import org.apache.storm.task.OutputCollector
@@ -29,10 +29,12 @@ class TestDroppingStaleMessages {
 
         builder.setSpout("spout", LatencyDeltaSpout())
 
-        builder.setBolt("unanchoring-bolt", UnanchoringBolt())
+        builder
+            .setBolt("unanchoring-bolt", UnanchoringBolt())
             .noneGrouping("spout")
 
-        builder.setBolt("delay-unanchored-bolt", StuckBolt())
+        builder
+            .setBolt("delay-unanchored-bolt", StuckBolt())
             .noneGrouping("unanchoring-bolt")
         val kumulusTopology =
             KumulusStormTransformer.initializeTopology(builder.createTopology(), config, "test")
@@ -52,13 +54,18 @@ class TestDroppingStaleMessages {
         assertTrue { lateHookCalled }
     }
 
-    class LatencyDeltaSpout : DummySpout({
-        it.declare(Fields("id"))
-    }) {
+    class LatencyDeltaSpout :
+        DummySpout({
+            it.declare(Fields("id"))
+        }) {
         private var index: Int = 0
         private var lastCall: Long? = 0
 
-        override fun open(conf: MutableMap<Any?, Any?>?, context: TopologyContext?, collector: SpoutOutputCollector?) {
+        override fun open(
+            conf: MutableMap<Any?, Any?>?,
+            context: TopologyContext?,
+            collector: SpoutOutputCollector?,
+        ) {
             super.open(conf, context, collector)
             this.index = 0
             this.lastCall = null
@@ -88,25 +95,31 @@ class TestDroppingStaleMessages {
             collector.ack(input)
         }
 
-        override fun prepare(p0: MutableMap<Any?, Any?>?, p1: TopologyContext?, p2: OutputCollector?) {
+        override fun prepare(
+            p0: MutableMap<Any?, Any?>?,
+            p1: TopologyContext?,
+            p2: OutputCollector?,
+        ) {
             this.collector = p2!!
         }
 
         override fun cleanup() = Unit
 
-        override fun getComponentConfiguration(): MutableMap<String, Any> {
-            return mutableMapOf()
-        }
+        override fun getComponentConfiguration(): MutableMap<String, Any> = mutableMapOf()
 
         override fun declareOutputFields(p0: OutputFieldsDeclarer) {
             p0.declare(Fields("id"))
         }
     }
 
-    class StuckBolt : DummyBolt({
-        it.declare(Fields("id"))
-    }) {
-        override fun execute(input: Tuple, collector: BasicOutputCollector) {
+    class StuckBolt :
+        DummyBolt({
+            it.declare(Fields("id"))
+        }) {
+        override fun execute(
+            input: Tuple,
+            collector: BasicOutputCollector,
+        ) {
             logger.info { "StuckBolt: started" }
             while (true) {
                 Thread.sleep(50)

@@ -1,6 +1,6 @@
 package org.xyro.kumulus
 
-import mu.KotlinLogging
+import io.github.oshai.kotlinlogging.KotlinLogging
 import org.apache.storm.Config
 import org.apache.storm.spout.SpoutOutputCollector
 import org.apache.storm.task.TopologyContext
@@ -24,9 +24,11 @@ class TestSingleAcking {
         config[KumulusTopology.CONF_THREAD_POOL_CORE_SIZE] = 5L
 
         builder.setSpout("spout", TestSpout())
-        builder.setBolt("bolt1", TestBolt())
+        builder
+            .setBolt("bolt1", TestBolt())
             .noneGrouping("spout")
-        builder.setBolt("bolt2", TestBolt())
+        builder
+            .setBolt("bolt2", TestBolt())
             .noneGrouping("spout")
         val kumulusTopology =
             KumulusStormTransformer.initializeTopology(builder.createTopology(), config, "test")
@@ -39,7 +41,11 @@ class TestSingleAcking {
         private var index: Int = 0
         private val emitted = mutableSetOf<Int>()
 
-        override fun open(conf: MutableMap<Any?, Any?>?, context: TopologyContext?, collector: SpoutOutputCollector?) {
+        override fun open(
+            conf: MutableMap<Any?, Any?>?,
+            context: TopologyContext?,
+            collector: SpoutOutputCollector?,
+        ) {
             super.open(conf, context, collector)
             this.index = 0
         }
@@ -69,7 +75,11 @@ class TestSingleAcking {
     }
 
     class TestBolt : BaseBasicBolt() {
-        override fun execute(p0: Tuple?, p1: BasicOutputCollector?) = Unit
+        override fun execute(
+            p0: Tuple?,
+            p1: BasicOutputCollector?,
+        ) = Unit
+
         override fun declareOutputFields(p0: OutputFieldsDeclarer?) = Unit
     }
 

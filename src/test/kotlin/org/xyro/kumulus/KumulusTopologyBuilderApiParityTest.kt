@@ -16,27 +16,26 @@ class KumulusTopologyBuilderApiParityTest {
         val extraInNative = nativeApi - stormApi
 
         if (missingFromNative.isNotEmpty() || extraInNative.isNotEmpty()) {
-            val message = buildString {
-                appendLine("KumulusTopologyBuilder API mismatch against Storm TopologyBuilder.")
-                appendLine("Missing in native builder:")
-                appendLine(formatSignatureList(missingFromNative))
-                appendLine("Extra in native builder:")
-                appendLine(formatSignatureList(extraInNative))
-            }
+            val message =
+                buildString {
+                    appendLine("KumulusTopologyBuilder API mismatch against Storm TopologyBuilder.")
+                    appendLine("Missing in native builder:")
+                    appendLine(formatSignatureList(missingFromNative))
+                    appendLine("Extra in native builder:")
+                    appendLine(formatSignatureList(extraInNative))
+                }
             fail(message)
         }
     }
 
-    private fun publicInstanceMethodSignatures(clazz: Class<*>): Set<String> {
-        return clazz.declaredMethods
+    private fun publicInstanceMethodSignatures(clazz: Class<*>): Set<String> =
+        clazz.declaredMethods
             .filter { Modifier.isPublic(it.modifiers) && !Modifier.isStatic(it.modifiers) }
             .filterNot { it.isSynthetic || it.isBridge }
             .map { method ->
                 val parameterTypes = method.parameterTypes.joinToString(",") { it.name }
                 "${method.name}($parameterTypes)"
-            }
-            .toSet()
-    }
+            }.toSet()
 
     private fun formatSignatureList(signatures: Set<String>): String {
         if (signatures.isEmpty()) {

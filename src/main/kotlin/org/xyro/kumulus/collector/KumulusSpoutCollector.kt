@@ -10,19 +10,22 @@ class KumulusSpoutCollector(
     component: KumulusComponent,
     emitter: KumulusEmitter,
     acker: KumulusAcker,
-    errorHandler: ((String, Int, Throwable) -> Unit)?
+    errorHandler: ((String, Int, Throwable) -> Unit)?,
 ) : KumulusCollector<KumulusSpout>(
-    component,
-    emitter,
-    acker,
-    errorHandler
-),
+        component,
+        emitter,
+        acker,
+        errorHandler,
+    ),
     ISpoutOutputCollector {
-    override fun emitDirect(taskId: Int, streamId: String?, tuple: MutableList<Any>?, messageId: Any?) {
+    override fun emitDirect(
+        taskId: Int,
+        streamId: String?,
+        tuple: MutableList<Any>?,
+        messageId: Any?,
+    ) {
         TODO("not implemented") // To change body of created functions use File | Settings | File Templates.
     }
 
-    override fun getPendingCount(): Long {
-        return acker.getPendingCount()
-    }
+    override fun getPendingCount(): Long = acker.getPendingCount()
 }

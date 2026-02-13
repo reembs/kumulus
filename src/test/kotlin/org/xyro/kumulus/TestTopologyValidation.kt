@@ -18,7 +18,8 @@ class TestTopologyValidation {
         val builder = KumulusTopologyBuilder()
         val config: MutableMap<String, Any> = mutableMapOf()
         builder.setSpout("spout", DummySpout())
-        builder.setBolt("bolt", DummyBolt())
+        builder
+            .setBolt("bolt", DummyBolt())
             .noneGrouping("missing-bolt")
         KumulusStormTransformer.initializeTopology(builder.createTopology(), config, "test")
     }
@@ -31,7 +32,8 @@ class TestTopologyValidation {
 
         builder.setBolt("bolt", DummyBolt())
 
-        builder.setBolt("bolt2", DummyBolt())
+        builder
+            .setBolt("bolt2", DummyBolt())
             .noneGrouping("bolt", "missing-stream")
         KumulusStormTransformer.initializeTopology(builder.createTopology(), config, "test")
     }
@@ -42,14 +44,16 @@ class TestTopologyValidation {
         val config: MutableMap<String, Any> = mutableMapOf()
         builder.setSpout("spout", DummySpout())
 
-        builder.setBolt(
-            "bolt",
-            DummyBolt({
-                it.declareStream("stream", Fields("num"))
-            })
-        ).noneGrouping("spout")
+        builder
+            .setBolt(
+                "bolt",
+                DummyBolt({
+                    it.declareStream("stream", Fields("num"))
+                }),
+            ).noneGrouping("spout")
 
-        builder.setBolt("bolt2", DummyBolt())
+        builder
+            .setBolt("bolt2", DummyBolt())
             .fieldsGrouping("bolt", "stream", Fields("num", "non-existing-field"))
         KumulusStormTransformer.initializeTopology(builder.createTopology(), config, "test")
     }
@@ -60,14 +64,16 @@ class TestTopologyValidation {
         val config: MutableMap<String, Any> = mutableMapOf()
         builder.setSpout("spout", DummySpout())
 
-        builder.setBolt(
-            "bolt",
-            DummyBolt({
-                it.declareStream("stream", Fields("num"))
-            })
-        ).noneGrouping("spout")
+        builder
+            .setBolt(
+                "bolt",
+                DummyBolt({
+                    it.declareStream("stream", Fields("num"))
+                }),
+            ).noneGrouping("spout")
 
-        builder.setBolt("bolt2", DummyBolt())
+        builder
+            .setBolt("bolt2", DummyBolt())
             .fieldsGrouping("bolt", "stream", Fields("num"))
         KumulusStormTransformer.initializeTopology(builder.createTopology(), config, "test")
     }
@@ -85,9 +91,14 @@ open class DummySpout : BaseRichSpout {
 
     override fun nextTuple() {}
 
-    override fun open(conf: MutableMap<Any?, Any?>?, context: TopologyContext?, collector: SpoutOutputCollector?) {
+    override fun open(
+        conf: MutableMap<Any?, Any?>?,
+        context: TopologyContext?,
+        collector: SpoutOutputCollector?,
+    ) {
         this.collector = collector!!
     }
+
     override fun declareOutputFields(declarer: OutputFieldsDeclarer) {
         declare(declarer)
     }
@@ -102,7 +113,11 @@ open class DummyBolt : BaseBasicBolt {
         this.declare = declare
     }
 
-    override fun execute(input: Tuple, collector: BasicOutputCollector) {}
+    override fun execute(
+        input: Tuple,
+        collector: BasicOutputCollector,
+    ) {}
+
     override fun declareOutputFields(declarer: OutputFieldsDeclarer) {
         declare(declarer)
     }

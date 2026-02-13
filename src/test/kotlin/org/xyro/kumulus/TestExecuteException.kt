@@ -22,7 +22,8 @@ class TestExecuteException {
         config[KumulusTopology.CONF_THREAD_POOL_CORE_SIZE] = 5L
 
         builder.setSpout("spout", TestSpout())
-        builder.setBolt("execute-exception-bolt", TestExecuteExceptionBolt())
+        builder
+            .setBolt("execute-exception-bolt", TestExecuteExceptionBolt())
             .noneGrouping("spout")
         val kumulusTopology =
             KumulusStormTransformer.initializeTopology(builder.createTopology(), config, "test")
@@ -53,16 +54,22 @@ class TestExecuteException {
     }
 
     class TesExceptiontSpout : DummySpout({ it.declare(Fields()) }) {
-        override fun nextTuple() {
-            throw RuntimeException("This exception should be thrown")
-        }
+        override fun nextTuple(): Unit = throw RuntimeException("This exception should be thrown")
     }
 
     class TestExecuteExceptionBolt : IRichBolt {
         override fun execute(input: Tuple) = throw RuntimeException("This exception should be thrown")
-        override fun prepare(p0: MutableMap<Any?, Any?>?, p1: TopologyContext?, p2: OutputCollector) {}
+
+        override fun prepare(
+            p0: MutableMap<Any?, Any?>?,
+            p1: TopologyContext?,
+            p2: OutputCollector,
+        ) {}
+
         override fun cleanup() = Unit
+
         override fun getComponentConfiguration(): MutableMap<String, Any> = mutableMapOf()
+
         override fun declareOutputFields(p0: OutputFieldsDeclarer) = Unit
     }
 

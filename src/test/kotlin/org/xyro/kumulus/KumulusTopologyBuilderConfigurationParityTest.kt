@@ -26,14 +26,22 @@ class KumulusTopologyBuilderConfigurationParityTest {
         stormDeclarer.addConfiguration("k1", "v1")
         stormDeclarer.addConfiguration("k2", 2)
         stormDeclarer.addConfigurations(mapOf("k3" to true, "k1" to "override"))
-        val stormJson = stormBuilder.createTopology()._spouts["spout"]!!._common._json_conf
+        val stormJson =
+            stormBuilder
+                .createTopology()
+                ._spouts["spout"]!!
+                ._common._json_conf
 
         val nativeBuilder = KumulusTopologyBuilder()
         val nativeDeclarer = nativeBuilder.setSpout("spout", ConfigurableSpout(componentConfig))
         nativeDeclarer.addConfiguration("k1", "v1")
         nativeDeclarer.addConfiguration("k2", 2)
         nativeDeclarer.addConfigurations(mapOf("k3" to true, "k1" to "override"))
-        val nativeJson = nativeBuilder.createTopology().spouts["spout"]!!.common._json_conf
+        val nativeJson =
+            nativeBuilder
+                .createTopology()
+                .spouts["spout"]!!
+                .common._json_conf
 
         assertEquals(parseJson(stormJson), parseJson(nativeJson))
     }
@@ -47,14 +55,22 @@ class KumulusTopologyBuilderConfigurationParityTest {
         stormDeclarer.addConfiguration("k1", "v1")
         stormDeclarer.addConfiguration("k2", 2)
         stormDeclarer.addConfigurations(mapOf("k3" to true, "k1" to "override"))
-        val stormJson = stormBuilder.createTopology()._bolts["bolt"]!!._common._json_conf
+        val stormJson =
+            stormBuilder
+                .createTopology()
+                ._bolts["bolt"]!!
+                ._common._json_conf
 
         val nativeBuilder = KumulusTopologyBuilder()
         val nativeDeclarer = nativeBuilder.setBolt("bolt", ConfigurableBolt(componentConfig))
         nativeDeclarer.addConfiguration("k1", "v1")
         nativeDeclarer.addConfiguration("k2", 2)
         nativeDeclarer.addConfigurations(mapOf("k3" to true, "k1" to "override"))
-        val nativeJson = nativeBuilder.createTopology().bolts["bolt"]!!.common._json_conf
+        val nativeJson =
+            nativeBuilder
+                .createTopology()
+                .bolts["bolt"]!!
+                .common._json_conf
 
         assertEquals(parseJson(stormJson), parseJson(nativeJson))
     }
@@ -98,20 +114,26 @@ class KumulusTopologyBuilderConfigurationParityTest {
     }
 
     private class ConfigurableSpout(
-        private val componentConfig: MutableMap<String, Any?>
+        private val componentConfig: MutableMap<String, Any?>,
     ) : IRichSpout {
         override fun open(
             conf: MutableMap<Any?, Any?>?,
             context: TopologyContext?,
-            collector: SpoutOutputCollector?
+            collector: SpoutOutputCollector?,
         ) = Unit
 
         override fun close() = Unit
+
         override fun activate() = Unit
+
         override fun deactivate() = Unit
+
         override fun nextTuple() = Unit
+
         override fun ack(msgId: Any?) = Unit
+
         override fun fail(msgId: Any?) = Unit
+
         override fun declareOutputFields(declarer: OutputFieldsDeclarer) {
             declarer.declare(Fields("f"))
         }
@@ -120,16 +142,18 @@ class KumulusTopologyBuilderConfigurationParityTest {
     }
 
     private class ConfigurableBolt(
-        private val componentConfig: MutableMap<String, Any?>
+        private val componentConfig: MutableMap<String, Any?>,
     ) : IRichBolt {
         override fun prepare(
             stormConf: MutableMap<Any?, Any?>?,
             context: TopologyContext?,
-            collector: OutputCollector?
+            collector: OutputCollector?,
         ) = Unit
 
         override fun execute(input: Tuple) = Unit
+
         override fun cleanup() = Unit
+
         override fun declareOutputFields(declarer: OutputFieldsDeclarer) {
             declarer.declare(Fields("f"))
         }
