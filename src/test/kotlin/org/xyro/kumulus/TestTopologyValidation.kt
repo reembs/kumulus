@@ -74,7 +74,8 @@ class TestTopologyValidation {
 }
 
 open class DummySpout : BaseRichSpout {
-    private val declare: (declarer: OutputFieldsDeclarer) -> Unit
+    @Transient
+    private var declare: (declarer: OutputFieldsDeclarer) -> Unit = {}
     protected lateinit var collector: SpoutOutputCollector
 
     constructor() : this({})
@@ -93,7 +94,8 @@ open class DummySpout : BaseRichSpout {
 }
 
 open class DummyBolt : BaseBasicBolt {
-    private val declare: (declarer: OutputFieldsDeclarer) -> Unit
+    @Transient
+    private var declare: (declarer: OutputFieldsDeclarer) -> Unit = {}
 
     constructor() : this({})
     constructor(declare: (declarer: OutputFieldsDeclarer) -> Unit) : super() {
