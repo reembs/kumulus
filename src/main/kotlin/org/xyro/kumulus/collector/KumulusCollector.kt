@@ -101,6 +101,6 @@ abstract class KumulusCollector<T : KumulusComponent>(
             throw RuntimeException("Bolts wrong emit method called for ${component.componentId}/${component.taskId}")
         }
         acker.startTree(component, messageId)
-        return componentEmit(streamId, tuple, messageId!!)
+        return componentEmit(streamId, tuple, messageId)
     }
 }
