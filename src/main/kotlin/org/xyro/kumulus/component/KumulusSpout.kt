@@ -114,6 +114,7 @@ class KumulusSpout(
                             try {
                                 if (isReady.get()) {
                                     MDC.put("component", componentId)
+                                    MDC.put("component_index", taskIndex.toString())
                                     try {
                                         nextTuple()
                                     } finally {

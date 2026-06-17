@@ -42,6 +42,7 @@ abstract class KumulusCollector<T : KumulusComponent>(
     ): Map<String, String> {
         val ctx = (MDC.getCopyOfContextMap() ?: emptyMap()).toMutableMap()
         ctx["component"] = component.componentId
+        ctx["component_index"] = component.taskIndex.toString()
         ctx["stream_id"] = streamId ?: Utils.DEFAULT_STREAM_ID
         messageId?.let { ctx["message_id"] = it.toString() }
         return ctx

@@ -81,6 +81,7 @@ class TestLoggingContext {
 
             val event = boltEvent(appender)
             assertEquals("my-bolt", event.contextMap["component"])
+            assertEquals("0", event.contextMap["component_index"])
             assertEquals("default", event.contextMap["stream_id"])
             assertEquals("msg-42", event.contextMap["message_id"])
         }
@@ -181,6 +182,7 @@ class TestLoggingContext {
                 event.contextMap.containsKey("spout_key"),
                 "spout_key set during first nextTuple must not leak into second nextTuple call",
             )
+            assertEquals("0", event.contextMap["component_index"])
         }
     }
 
