@@ -4,6 +4,7 @@ import io.github.oshai.kotlinlogging.KotlinLogging
 import org.apache.storm.grouping.CustomStreamGrouping
 import org.apache.storm.tuple.Tuple
 import org.apache.storm.utils.Utils
+import org.slf4j.MDC
 import org.xyro.kumulus.KumulusAcker
 import org.xyro.kumulus.KumulusEmitter
 import org.xyro.kumulus.KumulusTuple
@@ -35,6 +36,17 @@ abstract class KumulusCollector<T : KumulusComponent>(
         )
     }
 
+    private fun buildLoggingContext(
+        streamId: String?,
+        messageId: Any?,
+    ): Map<String, String> {
+        val ctx = (MDC.getCopyOfContextMap() ?: emptyMap()).toMutableMap()
+        ctx["component"] = component.componentId
+        ctx["stream_id"] = streamId ?: Utils.DEFAULT_STREAM_ID
+        messageId?.let { ctx["message_id"] = it.toString() }
+        return ctx
+    }
+
     private fun componentEmit(
         streamId: String?,
         tuple: MutableList<Any>,
@@ -42,6 +54,7 @@ abstract class KumulusCollector<T : KumulusComponent>(
     ): MutableList<Int> {
         val ret = mutableListOf<Int>()
 
+        val loggingContext = buildLoggingContext(streamId, messageId)
         var executes: List<Pair<KumulusComponent, KumulusTuple>> = listOf()
 
         component.groupingStateMap[streamId]?.let { streamTargets: Map<String, CustomStreamGrouping> ->
@@ -54,7 +67,14 @@ abstract class KumulusCollector<T : KumulusComponent>(
                 executes +=
                     emitToInstance
                         .map { destComponent ->
-                            val kumulusTuple = KumulusTuple(component, streamId ?: Utils.DEFAULT_STREAM_ID, tuple, messageId)
+                            val kumulusTuple =
+                                KumulusTuple(
+                                    component,
+                                    streamId ?: Utils.DEFAULT_STREAM_ID,
+                                    tuple,
+                                    messageId,
+                                    loggingContext,
+                                )
                             acker.expandTrees(component, destComponent.taskId, kumulusTuple)
                             destComponent to kumulusTuple
                         }.toList()
