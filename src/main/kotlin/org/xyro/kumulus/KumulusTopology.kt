@@ -300,7 +300,13 @@ class KumulusTopology(
                             throw RuntimeException("Execute message got to a spout '${c.componentId}', this shouldn't happen.")
                         }
                         callBusyHook(c, message)
-                        MDC.setContextMap(message.tuple.loggingContext + mapOf("component" to c.componentId))
+                        MDC.setContextMap(
+                            message.tuple.loggingContext +
+                                mapOf(
+                                    "component" to c.componentId,
+                                    "component_index" to c.taskIndex.toString(),
+                                ),
+                        )
                         try {
                             c.execute(message.tuple)
                         } finally {
