@@ -3,3 +3,5 @@ logs/
 *.iml
 target/
 dependency-reduced-pom.xml
+.env.local
+.codex
