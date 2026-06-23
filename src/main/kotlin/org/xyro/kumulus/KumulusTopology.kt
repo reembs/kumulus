@@ -4,6 +4,7 @@ import io.github.oshai.kotlinlogging.KotlinLogging
 import org.apache.storm.Config
 import org.apache.storm.Constants
 import org.apache.storm.tuple.Tuple
+import org.slf4j.MDC
 import org.xyro.kumulus.collector.KumulusBoltCollector
 import org.xyro.kumulus.collector.KumulusSpoutCollector
 import org.xyro.kumulus.component.AckMessage
@@ -299,7 +300,18 @@ class KumulusTopology(
                             throw RuntimeException("Execute message got to a spout '${c.componentId}', this shouldn't happen.")
                         }
                         callBusyHook(c, message)
-                        c.execute(message.tuple)
+                        MDC.setContextMap(
+                            message.tuple.loggingContext +
+                                mapOf(
+                                    "component" to c.componentId,
+                                    "component_index" to c.taskIndex.toString(),
+                                ),
+                        )
+                        try {
+                            c.execute(message.tuple)
+                        } finally {
+                            MDC.clear()
+                        }
                     }
                     else ->
                         throw UnsupportedOperationException("Operation of type ${c.javaClass.canonicalName} is unsupported")

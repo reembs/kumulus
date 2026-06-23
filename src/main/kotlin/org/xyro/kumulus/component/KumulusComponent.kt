@@ -32,6 +32,7 @@ abstract class KumulusComponent(
 
     val componentId = context.thisComponentId!!
     val taskId = context.thisTaskId
+    val taskIndex = context.thisTaskIndex
 
     fun prepare() {
         val groupingStateMap: MutableMap<String, MutableMap<String, CustomStreamGrouping>> = mutableMapOf()

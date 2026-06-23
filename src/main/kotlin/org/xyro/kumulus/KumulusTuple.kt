@@ -10,6 +10,7 @@ class KumulusTuple(
     streamId: String,
     tuple: List<Any>,
     messageId: Any?,
+    val loggingContext: Map<String, String> = emptyMap(),
 ) {
     private val spoutMessageId = messageId
 

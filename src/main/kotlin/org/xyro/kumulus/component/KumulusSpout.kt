@@ -4,6 +4,7 @@ import io.github.oshai.kotlinlogging.KotlinLogging
 import org.apache.storm.spout.SpoutOutputCollector
 import org.apache.storm.task.TopologyContext
 import org.apache.storm.topology.IRichSpout
+import org.slf4j.MDC
 import org.xyro.kumulus.KumulusAcker
 import org.xyro.kumulus.KumulusTopology
 import org.xyro.kumulus.collector.KumulusSpoutCollector
@@ -112,7 +113,13 @@ class KumulusSpout(
                         if (inUse.compareAndSet(false, true)) {
                             try {
                                 if (isReady.get()) {
-                                    nextTuple()
+                                    MDC.put("component", componentId)
+                                    MDC.put("component_index", taskIndex.toString())
+                                    try {
+                                        nextTuple()
+                                    } finally {
+                                        MDC.clear()
+                                    }
                                 }
                             } finally {
                                 inUse.set(false)
