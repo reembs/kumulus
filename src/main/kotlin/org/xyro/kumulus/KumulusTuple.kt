@@ -1,5 +1,6 @@
 package org.xyro.kumulus
 
+import io.opentelemetry.context.Context
 import org.apache.storm.tuple.MessageId
 import org.apache.storm.tuple.Tuple
 import org.xyro.kumulus.component.KumulusComponent
@@ -11,6 +12,7 @@ class KumulusTuple(
     tuple: List<Any>,
     messageId: Any?,
     val loggingContext: Map<String, String> = emptyMap(),
+    val otelContext: Context = Context.root(),
 ) {
     private val spoutMessageId = messageId
 

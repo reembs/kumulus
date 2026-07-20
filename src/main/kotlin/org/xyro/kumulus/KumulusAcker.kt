@@ -1,6 +1,8 @@
 package org.xyro.kumulus
 
 import io.github.oshai.kotlinlogging.KotlinLogging
+import io.opentelemetry.api.trace.Span
+import io.opentelemetry.api.trace.StatusCode
 import org.apache.storm.shade.org.eclipse.jetty.util.ConcurrentHashSet
 import org.apache.storm.tuple.Tuple
 import org.xyro.kumulus.component.KumulusComponent
@@ -37,12 +39,15 @@ class KumulusAcker(
     fun startTree(
         component: KumulusSpout,
         messageId: Any?,
+        rootSpan: Span,
     ) {
         logger.debug { "startTree() -> component: $component, messageId: $messageId" }
         if (messageId == null) {
+            // Unanchored: no tuple-tree tracking, so the span cannot be ended at ack/fail.
+            // The collector ends it right after emit.
             notifySpout(component, messageId, listOf())
         } else {
-            MessageState(component).let { messageState ->
+            MessageState(component, rootSpan).let { messageState ->
                 synchronized(completeLock) {
                     if (state[messageId] != null) {
                         logger.error { "messageId $messageId is currently being processes. Duplicate IDs are not allowed" }
@@ -76,6 +81,7 @@ class KumulusAcker(
                                         removedState.pendingTasks.map { it.key },
                                         removedState.failedTasks.toList(),
                                     )
+                                    endRootSpan(messageState, failed = true)
                                     decrementPending()
                                 }
                             }
@@ -182,6 +188,7 @@ class KumulusAcker(
                     val removedState = state.remove(spoutMessageId)
                     if (removedState != null) {
                         notifySpout(messageState.spout, spoutMessageId, messageState.failedTasks.toList())
+                        endRootSpan(messageState, failed = messageState.failedTasks.isNotEmpty())
                         decrementPending()
                     } else {
                         logger.debug { "Race while closing tuple-tree, ignoring duplicate" }
@@ -230,6 +237,16 @@ class KumulusAcker(
         emitter.completeMessageProcessing(spout, spoutMessageId, timeoutTasks, failedTasks)
     }
 
+    private fun endRootSpan(
+        messageState: MessageState,
+        failed: Boolean,
+    ) {
+        if (failed) {
+            messageState.rootSpan.setStatus(StatusCode.ERROR)
+        }
+        messageState.rootSpan.end()
+    }
+
     private fun decrementPending() {
         if (maxSpoutPending > 0) {
             synchronized(waitObject) {
@@ -253,6 +270,7 @@ class KumulusAcker(
 
     inner class MessageState(
         val spout: KumulusSpout,
+        val rootSpan: Span,
     ) {
         val pendingTasks = ConcurrentHashMap<Int, Tuple>()
         val failedTasks = ConcurrentHashSet<Int>()

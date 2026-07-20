@@ -1,11 +1,13 @@
 package org.xyro.kumulus
 
 import io.github.oshai.kotlinlogging.KotlinLogging
+import io.opentelemetry.api.GlobalOpenTelemetry
 import org.apache.storm.Config
 import org.apache.storm.Constants
 import org.apache.storm.tuple.Tuple
 import org.slf4j.MDC
 import org.xyro.kumulus.collector.KumulusBoltCollector
+import org.xyro.kumulus.collector.KumulusCollector
 import org.xyro.kumulus.collector.KumulusSpoutCollector
 import org.xyro.kumulus.component.AckMessage
 import org.xyro.kumulus.component.BoltPrepareMessage
@@ -62,6 +64,7 @@ class KumulusTopology(
     internal val acker: KumulusAcker
     internal val readyPollSleepTime: Long = config[CONF_READY_POLL_SLEEP] as? Long ?: 100L
     internal val queuePushbackWait: Long = config[CONF_BOLT_QUEUE_PUSHBACK_WAIT] as? Long ?: 0L
+    private val boltSpansEnabled: Boolean = config[CONF_TRACING_BOLT_SPANS_ENABLED] as? Boolean ?: false
 
     var onBusyBoltHook: ((String, Int, Long, Tuple) -> Unit)? = null
     var onBoltPrepareFinishHook: ((String, Int, Long) -> Unit)? = null
@@ -105,6 +108,7 @@ class KumulusTopology(
         const val CONF_LATE_MESSAGES_DROPPING_STREAMS_NAME = "kumulus.late-messages-dropping.streams-name"
         const val CONF_LATE_MESSAGES_DROPPING_SHOULD_DROP = "kumulus.late-messages-dropping.should-drop"
         const val CONF_LATE_MESSAGES_DROPPING_MAX_WAIT_SECONDS = "kumulus.late-messages-dropping.max-wait-seconds"
+        const val CONF_TRACING_BOLT_SPANS_ENABLED = "kumulus.tracing.bolt.spans.enabled"
 
         @Suppress("unused")
         @Deprecated("Use CONF_READY_POLL_SLEEP instead")
@@ -300,6 +304,20 @@ class KumulusTopology(
                             throw RuntimeException("Execute message got to a spout '${c.componentId}', this shouldn't happen.")
                         }
                         callBusyHook(c, message)
+                        val baseCtx = message.tuple.otelContext
+                        val boltSpan =
+                            if (boltSpansEnabled) {
+                                GlobalOpenTelemetry
+                                    .getTracer(KumulusCollector.TRACER_NAME)
+                                    .spanBuilder("kumulus.bolt ${c.componentId}")
+                                    .setParent(baseCtx)
+                                    .startSpan()
+                                    .setAttribute("kumulus.component", c.componentId)
+                                    .setAttribute("kumulus.task_index", c.taskIndex.toLong())
+                            } else {
+                                null
+                            }
+                        val execCtx = if (boltSpan != null) baseCtx.with(boltSpan) else baseCtx
                         MDC.setContextMap(
                             message.tuple.loggingContext +
                                 mapOf(
@@ -308,8 +326,11 @@ class KumulusTopology(
                                 ),
                         )
                         try {
-                            c.execute(message.tuple)
+                            execCtx.makeCurrent().use {
+                                c.execute(message.tuple)
+                            }
                         } finally {
+                            boltSpan?.end()
                             MDC.clear()
                         }
                     }

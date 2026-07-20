@@ -1,6 +1,8 @@
 package org.xyro.kumulus.collector
 
 import io.github.oshai.kotlinlogging.KotlinLogging
+import io.opentelemetry.api.GlobalOpenTelemetry
+import io.opentelemetry.context.Context
 import org.apache.storm.grouping.CustomStreamGrouping
 import org.apache.storm.tuple.Tuple
 import org.apache.storm.utils.Utils
@@ -20,6 +22,7 @@ abstract class KumulusCollector<T : KumulusComponent>(
 ) {
     companion object {
         private val logger = KotlinLogging.logger {}
+        const val TRACER_NAME = "org.xyro.kumulus"
     }
 
     // Impl. org.apache.storm.task.IOutputCollector
@@ -56,6 +59,7 @@ abstract class KumulusCollector<T : KumulusComponent>(
         val ret = mutableListOf<Int>()
 
         val loggingContext = buildLoggingContext(streamId, messageId)
+        val otelContext = Context.current()
         var executes: List<Pair<KumulusComponent, KumulusTuple>> = listOf()
 
         component.groupingStateMap[streamId]?.let { streamTargets: Map<String, CustomStreamGrouping> ->
@@ -75,6 +79,7 @@ abstract class KumulusCollector<T : KumulusComponent>(
                                     tuple,
                                     messageId,
                                     loggingContext,
+                                    otelContext,
                                 )
                             acker.expandTrees(component, destComponent.taskId, kumulusTuple)
                             destComponent to kumulusTuple
@@ -121,7 +126,25 @@ abstract class KumulusCollector<T : KumulusComponent>(
         if (component !is KumulusSpout) {
             throw RuntimeException("Bolts wrong emit method called for ${component.componentId}/${component.taskId}")
         }
-        acker.startTree(component, messageId)
-        return componentEmit(streamId, tuple, messageId)
+        val rootSpan =
+            GlobalOpenTelemetry
+                .getTracer(TRACER_NAME)
+                .spanBuilder("kumulus.spout ${component.componentId}")
+                .startSpan()
+                .setAttribute("kumulus.component", component.componentId)
+                .setAttribute("kumulus.task_index", component.taskIndex.toLong())
+                .setAttribute("kumulus.stream_id", streamId ?: Utils.DEFAULT_STREAM_ID)
+        messageId?.let { rootSpan.setAttribute("kumulus.message_id", it.toString()) }
+        acker.startTree(component, messageId, rootSpan)
+        return try {
+            Context.current().with(rootSpan).makeCurrent().use {
+                componentEmit(streamId, tuple, messageId)
+            }
+        } finally {
+            // Anchored tuples keep the span open until ack/fail (ended by the acker).
+            if (messageId == null) {
+                rootSpan.end()
+            }
+        }
     }
 }
