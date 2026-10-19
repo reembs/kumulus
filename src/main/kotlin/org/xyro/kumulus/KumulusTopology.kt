@@ -19,6 +19,7 @@ import org.xyro.kumulus.component.KumulusSpout
 import org.xyro.kumulus.component.PrepareMessage
 import org.xyro.kumulus.component.SpoutPrepareMessage
 import java.util.concurrent.CountDownLatch
+import java.util.concurrent.Executor
 import java.util.concurrent.RejectedExecutionHandler
 import java.util.concurrent.ScheduledThreadPoolExecutor
 import java.util.concurrent.TimeUnit
@@ -27,14 +28,22 @@ import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.atomic.AtomicReference
 
+/**
+ * @param executor optional executor used to run component work (prepare/execute). When null, Kumulus creates a
+ * fixed pool of [CONF_THREAD_POOL_CORE_SIZE] daemon threads. When provided, [CONF_THREAD_POOL_CORE_SIZE] is ignored
+ * and the caller owns the executor lifecycle.
+ */
 @Suppress("MemberVisibilityCanBePrivate")
 class KumulusTopology(
     private val components: List<KumulusComponent>,
     config: Map<String, Any>,
+    executor: Executor?,
 ) : KumulusEmitter {
+    constructor(components: List<KumulusComponent>, config: Map<String, Any>) : this(components, config, null)
+
     private val maxSpoutPending: Long = config[Config.TOPOLOGY_MAX_SPOUT_PENDING] as Long? ?: 0L
     private val poolSize = (config[CONF_THREAD_POOL_CORE_SIZE] as? Long ?: 1L).toInt()
-    private val boltExecutionPool = ExecutionPool(poolSize, ::handleQueueItem)
+    private val boltExecutionPool = ExecutionPool(executor ?: ExecutionPool.defaultExecutor(poolSize))
     private val stopLock = Any()
     private val started = AtomicBoolean(false)
     private val systemComponent = components.first { it.taskId == Constants.SYSTEM_TASK_ID.toInt() }
@@ -81,7 +90,7 @@ class KumulusTopology(
 
     @Suppress("MemberVisibilityCanBePrivate")
     val maxQueueSize: Int
-        get() = boltExecutionPool.maxSize.get()
+        get() = boltExecutionPool.maxQueueSize
 
     init {
         logger.info { "Initializing a Kumulus topology" }
@@ -150,7 +159,7 @@ class KumulusTopology(
     private fun prepare() {
         logger.info { "Kumulus is starting prepare process for ${components.size} components" }
         components.forEach { component ->
-            boltExecutionPool.enqueue(
+            enqueue(
                 when (component) {
                     is KumulusSpout ->
                         SpoutPrepareMessage(
@@ -181,7 +190,7 @@ class KumulusTopology(
                                             listOf(),
                                             null,
                                         )
-                                    boltExecutionPool.enqueue(ExecuteMessage(component, tuple))
+                                    enqueue(ExecuteMessage(component, tuple))
                                 } catch (e: Exception) {
                                     logger.error(e) { "Error in sending tick tuple" }
                                 }
@@ -244,7 +253,7 @@ class KumulusTopology(
         destComponent: KumulusComponent,
         kumulusTuple: KumulusTuple,
     ) {
-        boltExecutionPool.enqueue(ExecuteMessage(destComponent, kumulusTuple))
+        enqueue(ExecuteMessage(destComponent, kumulusTuple))
     }
 
     // KumulusEmitter impl
@@ -270,6 +279,10 @@ class KumulusTopology(
         logger.error("Exception from emitter: $t", t)
         crashException.compareAndSet(null, t)
         this.stopInternal()
+    }
+
+    private fun enqueue(message: KumulusMessage) {
+        boltExecutionPool.execute { handleQueueItem(message) }
     }
 
     private fun handleQueueItem(message: KumulusMessage) {
@@ -387,11 +400,11 @@ class KumulusTopology(
 
             if (shouldEnqueue) {
                 if (queuePushbackWait <= 0L) {
-                    boltExecutionPool.enqueue(message)
+                    enqueue(message)
                 } else {
                     scheduledExecutor.schedule(
                         {
-                            boltExecutionPool.enqueue(message)
+                            enqueue(message)
                         },
                         queuePushbackWait,
                         TimeUnit.MILLISECONDS,
@@ -404,7 +417,7 @@ class KumulusTopology(
     @Suppress("MemberVisibilityCanBePrivate")
     fun resetMetrics() {
         this.atomicMaxThreadsInUse.set(0)
-        this.boltExecutionPool.maxSize.set(0)
+        this.boltExecutionPool.resetMaxQueueSize()
     }
 
     private fun stopInternal() {
