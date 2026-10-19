@@ -75,6 +75,28 @@ class TestCustomExecutor {
         }
     }
 
+    @Test
+    fun testExecutionPoolTracksPeakPendingTasks() {
+        val pending = ArrayDeque<Runnable>()
+        val pool = ExecutionPool { pending.addLast(it) }
+        val ran = AtomicInteger(0)
+
+        repeat(3) { pool.execute { ran.incrementAndGet() } }
+        assertEquals(3, pool.maxQueueSize)
+
+        pending.removeFirst().run()
+        pending.removeFirst().run()
+        pool.resetMaxQueueSize()
+        assertEquals(0, pool.maxQueueSize)
+
+        // one task still pending, so the next submission makes two
+        pool.execute { ran.incrementAndGet() }
+        assertEquals(2, pool.maxQueueSize)
+
+        while (pending.isNotEmpty()) pending.removeFirst().run()
+        assertEquals(4, ran.get())
+    }
+
     private fun runTopology(executor: Executor?) {
         executedOn.clear()
         acked = CountDownLatch(TUPLE_COUNT)

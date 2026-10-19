@@ -1,6 +1,5 @@
 package org.xyro.kumulus
 
-import org.xyro.kumulus.component.KumulusMessage
 import java.util.concurrent.Executor
 import java.util.concurrent.LinkedTransferQueue
 import java.util.concurrent.ThreadFactory
@@ -8,23 +7,32 @@ import java.util.concurrent.ThreadPoolExecutor
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
 
+/**
+ * [Executor] decorator that tracks how many submitted tasks have not started yet, and the peak of that count.
+ */
 class ExecutionPool(
-    private val executor: Executor,
-    private val threadFun: (KumulusMessage) -> Unit,
-) {
+    private val delegate: Executor,
+) : Executor {
     private val queueSize = AtomicInteger(0)
+    private val maxSize = AtomicInteger(0)
 
-    var maxSize = AtomicInteger(0)
+    /** Peak number of submitted-but-not-started tasks since construction or the last [resetMaxQueueSize]. */
+    val maxQueueSize: Int
+        get() = maxSize.get()
 
-    fun enqueue(message: KumulusMessage) {
+    fun resetMaxQueueSize() {
+        maxSize.set(0)
+    }
+
+    override fun execute(command: Runnable) {
         val currentSize = queueSize.incrementAndGet()
         maxSize.getAndUpdate {
             Math.max(it, currentSize)
         }
         try {
-            executor.execute {
+            delegate.execute {
                 queueSize.decrementAndGet()
-                threadFun(message)
+                command.run()
             }
         } catch (e: Exception) {
             queueSize.decrementAndGet()
