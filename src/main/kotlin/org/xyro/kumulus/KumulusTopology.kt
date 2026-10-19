@@ -19,6 +19,7 @@ import org.xyro.kumulus.component.KumulusSpout
 import org.xyro.kumulus.component.PrepareMessage
 import org.xyro.kumulus.component.SpoutPrepareMessage
 import java.util.concurrent.CountDownLatch
+import java.util.concurrent.Executor
 import java.util.concurrent.RejectedExecutionHandler
 import java.util.concurrent.ScheduledThreadPoolExecutor
 import java.util.concurrent.TimeUnit
@@ -27,14 +28,22 @@ import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.atomic.AtomicReference
 
+/**
+ * @param executor optional executor used to run component work (prepare/execute). When null, Kumulus creates a
+ * fixed pool of [CONF_THREAD_POOL_CORE_SIZE] daemon threads. When provided, [CONF_THREAD_POOL_CORE_SIZE] is ignored
+ * and the caller owns the executor lifecycle.
+ */
 @Suppress("MemberVisibilityCanBePrivate")
 class KumulusTopology(
     private val components: List<KumulusComponent>,
     config: Map<String, Any>,
+    executor: Executor?,
 ) : KumulusEmitter {
+    constructor(components: List<KumulusComponent>, config: Map<String, Any>) : this(components, config, null)
+
     private val maxSpoutPending: Long = config[Config.TOPOLOGY_MAX_SPOUT_PENDING] as Long? ?: 0L
     private val poolSize = (config[CONF_THREAD_POOL_CORE_SIZE] as? Long ?: 1L).toInt()
-    private val boltExecutionPool = ExecutionPool(poolSize, ::handleQueueItem)
+    private val boltExecutionPool = ExecutionPool(executor ?: ExecutionPool.defaultExecutor(poolSize), ::handleQueueItem)
     private val stopLock = Any()
     private val started = AtomicBoolean(false)
     private val systemComponent = components.first { it.taskId == Constants.SYSTEM_TASK_ID.toInt() }

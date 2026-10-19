@@ -26,6 +26,7 @@ import org.xyro.kumulus.component.KumulusComponent
 import org.xyro.kumulus.component.KumulusSpout
 import org.xyro.kumulus.topology.KumulusTopologyDefinition
 import java.io.Serializable
+import java.util.concurrent.Executor
 
 @Suppress("unused")
 class KumulusStormTransformer {
@@ -35,13 +36,16 @@ class KumulusStormTransformer {
          * @param topology the Storm topology to transform
          * @param rawConfig the Storm configuration
          * @param stormId the Storm topology ID string
+         * @param executor optional executor for component work; see [KumulusTopology]
          */
         @Suppress("UNCHECKED_CAST")
         @JvmStatic
+        @JvmOverloads
         fun initializeTopology(
             topology: StormTopology,
             rawConfig: MutableMap<String, Any>,
             stormId: String,
+            executor: Executor? = null,
         ): KumulusTopology {
             val serializedBoltsMap = readBolts(topology)
             val serializedSpoutsMap = readSpouts(topology)
@@ -72,7 +76,7 @@ class KumulusStormTransformer {
                 serializedSpoutsMap.mapValues { (_, spec) -> spec._common!! } +
                     serializedBoltsMap.mapValues { (_, bolt) -> bolt._common!! }
 
-            return initializeTopology(topology, spoutsMap, boltsMap, componentCommonMap, rawConfig, stormId)
+            return initializeTopology(topology, spoutsMap, boltsMap, componentCommonMap, rawConfig, stormId, executor)
         }
 
         /**
@@ -80,12 +84,15 @@ class KumulusStormTransformer {
          * @param topology the native topology to transform
          * @param rawConfig the Storm configuration
          * @param stormId the Storm topology ID string
+         * @param executor optional executor for component work; see [KumulusTopology]
          */
         @JvmStatic
+        @JvmOverloads
         fun initializeTopology(
             topology: KumulusTopologyDefinition,
             rawConfig: MutableMap<String, Any>,
             stormId: String,
+            executor: Executor? = null,
         ): KumulusTopology {
             val spoutsMap = topology.spouts.mapValues { (_, declaration) -> declaration.spout }
             val boltsMap = topology.bolts.mapValues { (_, declaration) -> declaration.bolt }
@@ -94,7 +101,7 @@ class KumulusStormTransformer {
                     topology.bolts.mapValues { (_, declaration) -> declaration.common }
 
             val stormTopology = buildStormTopology(topology)
-            return initializeTopology(stormTopology, spoutsMap, boltsMap, componentCommonMap, rawConfig, stormId)
+            return initializeTopology(stormTopology, spoutsMap, boltsMap, componentCommonMap, rawConfig, stormId, executor)
         }
 
         @Suppress("LongMethod")
@@ -105,6 +112,7 @@ class KumulusStormTransformer {
             componentCommons: Map<String, ComponentCommon>,
             rawConfig: MutableMap<String, Any>,
             stormId: String,
+            executor: Executor?,
         ): KumulusTopology {
             val taskToComponent = mutableMapOf<Int, String>()
 
@@ -258,7 +266,7 @@ class KumulusStormTransformer {
 
             validateTopology(kComponents)
 
-            return KumulusTopology(kComponents, config)
+            return KumulusTopology(kComponents, config, executor)
         }
 
         @Suppress("UNCHECKED_CAST")
