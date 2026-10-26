@@ -1,7 +1,7 @@
 package org.xyro.kumulus
 
 import java.util.concurrent.Executor
-import java.util.concurrent.LinkedTransferQueue
+import java.util.concurrent.LinkedBlockingQueue
 import java.util.concurrent.ThreadFactory
 import java.util.concurrent.ThreadPoolExecutor
 import java.util.concurrent.TimeUnit
@@ -58,8 +58,12 @@ class ExecutionPool(
                 size,
                 0L,
                 TimeUnit.MILLISECONDS,
-                // uncapped, memory for in-flight tuples should be taken into account and factored into max-spout-pending
-                LinkedTransferQueue(),
+                // uncapped, memory for in-flight tuples should be taken into account and factored into max-spout-pending.
+                // Keep this a LinkedBlockingQueue: with a zero bolt pushback wait, a message for a busy component is
+                // re-enqueued immediately, and the queue's locks are what keep that retry loop from spinning every
+                // pool thread. A lock-free queue (LinkedTransferQueue) lets the retries starve the busy component's
+                // own thread, and throughput collapses under load.
+                LinkedBlockingQueue(),
                 threadFactory,
             ).apply {
                 prestartAllCoreThreads()
