@@ -12,7 +12,7 @@ import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.Executor
 import java.util.concurrent.Executors
-import java.util.concurrent.LinkedTransferQueue
+import java.util.concurrent.LinkedBlockingQueue
 import java.util.concurrent.ThreadPoolExecutor
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
@@ -66,7 +66,7 @@ class TestCustomExecutor {
             assertEquals(3, executor.corePoolSize)
             assertEquals(3, executor.maximumPoolSize)
             assertEquals(3, executor.poolSize)
-            assertTrue(executor.queue is LinkedTransferQueue<*>)
+            assertTrue(executor.queue is LinkedBlockingQueue<*>)
             val thread = executor.threadFactory.newThread {}
             assertTrue(thread.isDaemon)
             assertTrue(thread.name.startsWith("KumulusThread-"))
